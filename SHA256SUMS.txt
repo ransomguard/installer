@@ -1,0 +1,3 @@
+b48b1bb22834d4b768f5fa401847c9d5b0136f9fe76ea1efedc47b6a82b6876a  RansomGuard-Lab-Setup.exe
+96cd2627350d1b71ef6e73837f28932e711542227c8e2311e254b320378a2cd6  RansomGuard-TestPC-Setup.exe
+b20498f74d4c7ece9bef8b9c334f529176ecd9c3c8dfdf102096add23d6b1748  RansomGuard-Check.exe
