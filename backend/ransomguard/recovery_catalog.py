@@ -31,13 +31,16 @@ def catalog_snapshot(snapshot, *, volume_root, protected_root, reference_at,
                      max_age_seconds=DEFAULT_MAX_SNAPSHOT_AGE_SECONDS,
                      max_files=5000, max_file_bytes=512*1024*1024,
                      max_total_bytes=2*1024*1024*1024, max_seconds=30,
-                     backend=None):
+                     backend=None, manual_selection=False):
     for name, value, low, high in (
             ('files', max_files, 1, 5000), ('file bytes', max_file_bytes, 1, 512*1024*1024),
             ('total bytes', max_total_bytes, 1, 2*1024*1024*1024), ('seconds', max_seconds, 1, 300)):
         if type(value) is not int or not low <= value <= high:
             raise RecoveryValidationError('Invalid catalog bound: '+name)
-    require_fresh_snapshot(snapshot, reference_at, max_age_seconds)
+    if manual_selection is not True:
+        require_fresh_snapshot(snapshot, reference_at, max_age_seconds)
+    elif snapshot.created_at >= _aware_utc(reference_at,'reference_at'):
+        raise RecoveryValidationError('Manual snapshot must precede the current time')
     shape = build_plan(snapshot, volume_root=volume_root, protected_root=protected_root,
                        manifest=['validation-only.tmp'], incident_at=reference_at)
     if backend is None:

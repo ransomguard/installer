@@ -68,6 +68,32 @@ class RetentionTests(unittest.TestCase):
         args.update(overrides)
         return SnapshotRetention(self.db, self.config, **args)
 
+    def test_capacity_only_keeps_more_than_twelve_and_old_copies(self):
+        self.config['policy'].update(max_count=None,max_age_seconds=None)
+        for i in range(6,16):
+            item=Snapshot('{00000000-0000-0000-0000-%012d}' % i,VOLUME,
+                NOW-timedelta(days=i),r'\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy'+str(i))
+            self.live.append(item)
+            with database(self.db) as db:
+                db.execute('INSERT INTO snapshot_attempts VALUES(?,?,?)',(VOLUME,'created',json.dumps({
+                    'created':True,'reason':'vss_create_verified','snapshot':item.to_dict()})))
+        r=self.manager().run(VOLUME,apply=True,reserve_for_creation=True)
+        self.assertTrue(r['creation_allowed']);self.assertEqual(r['owned_count'],15)
+        self.assertEqual(self.deleted,[])
+
+    def test_capacity_rotation_rechecks_space_and_skips_pin(self):
+        self.config['policy'].update(max_count=None,max_age_seconds=None)
+        self.pins.add(self.items[0].snapshot_id)
+        self.space.update(used_bytes=5*GiB,allocated_bytes=5*GiB)
+        def delete(item):
+            self.delete(item)
+            self.space['used_bytes']-=GiB
+            self.space['allocated_bytes']-=GiB
+        r=self.manager(delete=delete).run(VOLUME,apply=True,reserve_for_creation=True)
+        self.assertTrue(r['creation_allowed'])
+        self.assertEqual(self.deleted,[s.snapshot_id for s in self.items[1:3]])
+        self.assertIn(self.items[0],self.live);self.assertIn(self.foreign,self.live)
+
     def test_preview_is_readonly_and_only_our_oldest_are_candidates(self):
         before = self.db.read_bytes()
         r=self.manager().run(VOLUME)
@@ -206,7 +232,7 @@ class RetentionTests(unittest.TestCase):
         t.join(3);self.assertTrue(entered.is_set())
 
     def test_bounded_limits_and_exact_delete_contract(self):
-        for values in ({'max_count':1},{'min_keep':13},{'max_used_bytes':1},{'max_age_seconds':1},{'max_count':True}):
+        for values in ({'max_count':1},{'min_keep':13,'max_count':12},{'max_used_bytes':1},{'max_age_seconds':1},{'max_count':True}):
             with self.assertRaises(ValueError):RetentionPolicy(**values)
         self.assertIn('Remove-CimInstance',_DELETE_SCRIPT)
         self.assertIn('metadata changed',_DELETE_SCRIPT)

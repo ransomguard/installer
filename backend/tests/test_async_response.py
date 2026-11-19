@@ -166,6 +166,20 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(self.wait_finished('one'),'REVIEW_REQUIRED')
         self.assertEqual(self.calls,[])
 
+    def test_storage_failure_keeps_review_and_logs_no_exception_payload(self):
+        import sqlite3
+        def fail(job, outbox, cancel):
+            error = sqlite3.OperationalError('private exception payload')
+            error.sqlite_errorname = 'SQLITE_BUSY'
+            raise error
+        self.worker = ResponseJobs(self.box, fail).start()
+        self.worker.enqueue(self.job())
+        self.assertEqual(self.wait_finished('one'), 'REVIEW_REQUIRED')
+        records = [r for r in self.box.pending() if r['event_type']=='response_storage_error']
+        self.assertEqual(records[0]['data']['sqlite_errorname'], 'SQLITE_BUSY')
+        self.assertNotIn('private exception payload', str(records))
+        self.assertIsNone(self.worker.error)
+
 
 class GuardTests(ResponseTests):
     # Inherit the actual response fixture; only these new cases are added by

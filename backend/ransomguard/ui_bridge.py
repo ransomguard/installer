@@ -148,6 +148,8 @@ def live_result_to_ui_messages(result: Any, *, protected_root: str,
         'jevClassification': result.jev_classification,
         'jevRequestId': result.jev_request_id,
         'jevModel': getattr(result, 'jev_model', None),
+        'jevRequestState': getattr(result, 'jev_request_state', None),
+        'jevRequestState': getattr(result, 'jev_request_state', None),
         'thresholds': getattr(result, 'decision_thresholds', None),
         'thresholdPolicy': 'uncalibrated_demo_only' if result.track == 'B' else None,
         'kernelTerminationAccepted': bool(result.kernel_termination_accepted),
@@ -271,7 +273,7 @@ class UiBestEffortPublisher:
     def publish_event(self, event: Event, *, event_id=None) -> str:
         # Fanout only: the observer has already persisted/triaged this event.
         # Do not feed the UI's own SQLite writes back into that same SQLite DB.
-        if self._ui_storage and self._ui_storage.matches(event):
+        if not getattr(self,'include_internal_storage',False) and self._ui_storage and self._ui_storage.matches(event):
             self.counters["ui_storage_skipped"] += 1
             return "ui_storage_skipped"
         try:

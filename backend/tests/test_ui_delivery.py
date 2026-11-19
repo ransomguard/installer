@@ -23,6 +23,24 @@ class Transport:
 
 
 class DeliveryTests(unittest.TestCase):
+    def test_idle_delivery_does_not_open_pipe_but_status_still_delivers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            opened = []
+            statuses = []
+            class StatusTransport(Transport):
+                def send(self, status): statuses.append(status)
+            def factory():
+                opened.append(True)
+                return StatusTransport()
+            sink = DurableUiDelivery(Path(folder)/'queue', transport_factory=factory)
+            for _ in range(10): self.assertFalse(sink.drain_once())
+            self.assertEqual(opened, [])
+            sink.send({'type': 'SYSTEM_STATUS', 'data': {}})
+            sink.drain_once()
+            self.assertEqual(len(statuses), 1)
+            self.assertEqual(len(opened), 1)
+            sink.close()
+
     def test_larger_batch_requires_ack_capability_and_downgrades_without_loss(self):
         with tempfile.TemporaryDirectory() as folder:
             transport=Transport();transport.peer_batch_limit=64

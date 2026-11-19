@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import math
+import os
+import time
 from typing import Any, Callable
 import uuid
 
@@ -47,6 +49,7 @@ class ResponseResult:
     jev_score: float | None = None
     jev_request_id: str | None = None
     jev_classification: str | None = None
+    jev_request_state: dict | None = None
     jev_model: str | None = None
     decision_thresholds: dict[str, float] | None = None
     firewall_hold_retained: bool = False
@@ -64,7 +67,7 @@ class ResponseResult:
                 "state": self.state, "reason": self.reason, "jev_score": self.jev_score,
                 "jev_request_id": self.jev_request_id,
                 "jev_classification": self.jev_classification,
-                "jev_model": self.jev_model, "decision_thresholds": self.decision_thresholds,
+                "jev_request_state": self.jev_request_state, "jev_model": self.jev_model, "decision_thresholds": self.decision_thresholds,
                 "firewall_hold_retained": self.firewall_hold_retained,
                 "firewall_policy_acknowledged": self.firewall_policy_acknowledged,
                 "kernel_termination_accepted": self.kernel_termination_accepted,
@@ -109,6 +112,8 @@ class LiveResponseCoordinator:
     def _log(self, item: ResponseResult, kind: str, **extra: Any) -> None:
         self.outbox.append(kind, {
             "execution_mode": "live_response", "track": item.track,
+            "evidence_mode": os.environ.get("RANSOM0_EVIDENCE_MODE", "unknown"),
+            "run_id": os.environ.get("RANSOM0_TEST_RUN_ID", ""),
             "pid": item.process.pid, "process_create_time": item.process.create_time,
             "state": item.state, "network_scope": "host_outbound",
             "wfp_enforcement_verified": False, **extra,
@@ -181,7 +186,9 @@ class LiveResponseCoordinator:
                 recovery_plan = recovery_plan_provider()
             except SnapshotFreshnessError:
                 return self._review(item, "recovery_snapshot_stale_or_not_preincident")
-            except (OSError, RuntimeError, ValueError, TimeoutError):
+            except (OSError, RuntimeError, ValueError, TimeoutError) as error:
+                self._log(item, "recovery_plan_error", error_type=type(error).__name__,
+                          detail=str(error)[:500])
                 return self._review(item, "recovery_plan_selection_failed")
         if recovery_plan is None:
             return self._review(item, "verified_recovery_plan_missing")
@@ -247,11 +254,49 @@ class LiveResponseCoordinator:
             item.decision_thresholds = {'benign': self.thresholds.benign, 'malicious': self.thresholds.malicious}
         self._log(item, "detection_recorded", decision_thresholds_are_uncalibrated_demo_values=True)
 
+        # Only this coordinator's automatic effects are exempted. Intake,
+        # kernel self protection and child-create blocking never consult this.
+        from pathlib import Path
+        from .program_allowlist import match
+        if getattr(self.outbox, 'path', None):
+            try:
+                rule = match(Path(self.outbox.path).parent, process)
+            except Exception as error:
+                rule = None
+                self._log(item, 'program_exception_unverified', error_type=type(error).__name__)
+            if rule:
+                item.state = 'EXEMPTED'
+                item.reason = 'program_path_sha256_automatic_response_exception'
+                # Retain Track B analysis, but never acquire a hold or perform
+                # termination/recovery, even when the score is malicious.
+                if track == 'B' and self.jev is not None and self._decision_allowed():
+                    try:
+                        verdict = self.jev.evaluate(jev_state)
+                        score = verdict.get('score')
+                        if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 1:
+                            raise ValueError('Invalid JEV score')
+                        if not isinstance(verdict.get('request_id'), str) or not verdict['request_id']:
+                            raise ValueError('Invalid JEV request identity')
+                        item.jev_score = float(score)
+                        item.jev_request_id = verdict['request_id']
+                        item.jev_request_state = verdict.get('request_state')
+                        item.jev_classification = ('benign' if score <= self.thresholds.benign else
+                                                   'malicious' if score >= self.thresholds.malicious else 'ambiguous')
+                        self._log(item, 'program_exception_jev_observed', score=score,
+                                  classification=item.jev_classification, request_id=item.jev_request_id,
+                                  request_state=item.jev_request_state, automatic_response=False)
+                    except Exception as error:
+                        self._log(item, 'program_exception_jev_unavailable', error_type=type(error).__name__)
+                self._log(item, 'automatic_response_exempted', program_exception=rule,
+                          telemetry_preserved=True, kernel_self_protection_preserved=True)
+                return item
+
         if not self._decision_allowed():
             return self._review(item, 'evidence_expired_or_collection_invalidated')
 
         item.state = "CONTAINMENT_REQUESTED"
         self._log(item, "host_outbound_block_requested", allowlist_scope="whole_host_jev_only")
+        containment_started = time.monotonic()
         try:
             # Even on timeout, the firewall manager stores a durable hold; a
             # missing/false ACK cannot be treated as proven filtering.
@@ -260,9 +305,13 @@ class LiveResponseCoordinator:
             item.firewall_policy_acknowledged = True
             item.state = "POLICY_ACKNOWLEDGED"
             self._log(item, "host_outbound_policy_acknowledged", wfp_enforcement_verified=False)
-        except Exception:
+        except Exception as error:
             item.firewall_hold_retained = True  # may be unknown; retain conservatively
-            self._log(item, "host_outbound_policy_unconfirmed", hold_status="unknown_review_required")
+            self._log(item, "host_outbound_policy_unconfirmed", hold_status="unknown_review_required",
+                      error_type=type(error).__name__, winerror=getattr(error, 'winerror', None),
+                      errno=getattr(error, 'errno', None),
+                      sqlite_errorname=getattr(error, 'sqlite_errorname', None),
+                      elapsed_ms=round((time.monotonic()-containment_started)*1000))
             if track == "A":
                 # Clear malicious behavior still requires prompt termination,
                 # even when network control is unavailable. Do not auto-release.
@@ -294,6 +343,8 @@ class LiveResponseCoordinator:
             verdict = self.jev.evaluate(jev_state)
         except Exception:
             return self._review(item, "jev_query_or_validation_failed")
+        if isinstance(verdict, dict):
+            item.jev_request_state = verdict.get("request_state")
         score = verdict.get("score") if isinstance(verdict, dict) else None
         if type(score) not in (int, float) or not math.isfinite(score) or not 0.0 <= score <= 1.0:
             return self._review(item, "jev_score_invalid")
@@ -303,7 +354,8 @@ class LiveResponseCoordinator:
         item.jev_request_id = verdict["request_id"]
         item.jev_model = verdict.get('model') if isinstance(verdict.get('model'), str) else None
         self._log(item, "jev_responded", score=item.jev_score,
-                  model=verdict.get("model"), request_id=item.jev_request_id)
+                  model=verdict.get("model"), request_id=item.jev_request_id,
+                  request_state=item.jev_request_state, decision_thresholds=item.decision_thresholds)
         if not self._decision_allowed():
             return self._review(item, 'evidence_expired_or_collection_invalidated')
         if score <= self.thresholds.benign:

@@ -36,3 +36,9 @@ class LiveProfileTests(unittest.TestCase):
             config['network']['extra_https_targets']=['https://example.com']
             (root/'config.json').write_text(json.dumps(config))
             with self.assertRaises(ValueError):observer_options(path,state_db=root/'holds')
+            path.write_text(json.dumps(profile | {'approved_extra_https_targets':['https://example.com']}))
+            self.assertIn('--live-track-b', observer_options(path,state_db=root/'holds')[0])
+            for targets in (['https://other.example'], ['https://*.example.com'], 'https://example.com', ['https://example.com']*2):
+                path.write_text(json.dumps(profile | {'approved_extra_https_targets':targets}))
+                with self.subTest(targets=targets), self.assertRaises(ValueError):
+                    observer_options(path,state_db=root/'holds')

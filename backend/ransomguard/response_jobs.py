@@ -8,6 +8,8 @@ import json
 import threading
 import time
 import uuid
+import sqlite3
+import traceback
 
 from .outbox import Outbox
 from .response_ledger import ResponseLedger
@@ -39,6 +41,15 @@ class ResponseJobs:
             outbox.db.execute("UPDATE response_jobs SET state='REVIEW_REQUIRED',reason='previous_worker_ended_no_replay' WHERE state IN ('READY','RUNNING')")
 
     def enqueue(self, job):
+        from pathlib import Path
+        from .scope_settings import scope_lock, ScopeBusy
+        try:
+            with scope_lock(Path(self.outbox.path).parent,dispatch=True):
+                return self._enqueue(job)
+        except ScopeBusy:
+            return 'scope_change_in_progress'
+
+    def _enqueue(self, job):
         if self.cancel.is_set():
             return 'stopping'
         ResponseLedger._validate(job['pid'], job['generation'], job['id'])
@@ -49,6 +60,7 @@ class ResponseJobs:
             raise ValueError('Response evidence exceeds bounded payload')
         db = self.outbox.db
         with db:
+            db.execute("DELETE FROM response_jobs WHERE pid=? AND generation=? AND state='EXEMPTED'", (job['pid'],job['generation']))
             if db.execute('SELECT 1 FROM response_jobs WHERE pid=? AND generation=?', (job['pid'],job['generation'])).fetchone():
                 return 'duplicate'
             pending = db.execute("SELECT count(*) FROM response_jobs WHERE owner=? AND state IN ('READY','RUNNING')", (self.owner,)).fetchone()[0]
@@ -90,10 +102,21 @@ class ResponseJobs:
                         if ledger.claim(incident_id=id_, pid=job['pid'], process_create_time=job['generation']):
                             try:
                                 state, reason = self.callback(job, outbox, self.cancel)
-                                if state not in ('RELEASED', 'REVIEW_REQUIRED'):
+                                if state not in ('RELEASED', 'REVIEW_REQUIRED', 'EXEMPTED'):
                                     raise ValueError('Response has no terminal state')
                             except Exception as error:
                                 state, reason = 'REVIEW_REQUIRED', 'response_exception_' + type(error).__name__
+                                if isinstance(error, sqlite3.Error):
+                                    try:
+                                        outbox.append('response_storage_error', {
+                                            'error_type': type(error).__name__,
+                                            'sqlite_errorname': getattr(error, 'sqlite_errorname', None),
+                                            'frames': [{'function': f.name, 'line': f.lineno}
+                                                       for f in traceback.extract_tb(error.__traceback__)[-6:]],
+                                        }, incident_id=id_)
+                                    except sqlite3.Error:
+                                        # Diagnostic storage must not skip the durable review outcome.
+                                        pass
                             ledger.finish(id_, state=state, reason=reason)
                         else:
                             reason = 'previous_durable_reservation_no_retry'

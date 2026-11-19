@@ -1,8 +1,31 @@
 import importlib.util,json,tempfile,unittest,hashlib
+from unittest.mock import patch
 from pathlib import Path
 P=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('installer',P/'src/setup_engine.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class InstallerTests(unittest.TestCase):
+    def test_install_never_changes_network_even_with_legacy_isolation_request(self):
+        from unittest.mock import Mock
+        runner=Mock(side_effect=AssertionError('Installer must not invoke network commands'))
+        with patch('jev_network.configure',side_effect=AssertionError('Installer must not configure isolation')) as configure:
+            for channel in ('isolated-lab','internal-test','internal-preview'):
+                for old in (None,{'installed':True}):
+                    for request in ({},{'jev_only_network':True},{'jev_only_network':False}):
+                        result=m.prepare_network(channel,old,request,'bridge','backup',runner)
+                        self.assertTrue(result['preserved_existing'])
+                        self.assertFalse(result['configured'])
+                        self.assertEqual(result['mode'],'incident_response_only')
+            runner.assert_not_called();configure.assert_not_called()
+    def test_missing_key_still_provisions_dashboard_transport(self):
+        with tempfile.TemporaryDirectory() as t:
+            base=Path(t);installroot=base/'installed'
+            def write(path,value):path.write_text(json.dumps(value),encoding='utf-8')
+            with patch.object(m,'save',side_effect=write):
+                result=m.ensure_jev_transport(base,installroot)
+                self.assertEqual(result['endpoint'],'https://api.typesafe.ai')
+                self.assertEqual(Path(result['bridge']),installroot/'bridge/RansomGuard.JevBridge.exe')
+                self.assertNotIn('api_key',result)
+                self.assertEqual(m.ensure_jev_transport(base,base/'different'),result)
     def test_legacy_paths_parse_without_execution(self):
         with tempfile.TemporaryDirectory() as t:
             b=Path(t);(b/'Start-RansomGuard.py').write_text("raise AssertionError('must not execute')\nROOT=Path('C:/root')\nPY=ROOT/'python.exe'\nUI=Path('C:/ui/app.exe')\nDAEMON=Path('C:/firewall/fw.exe')\n")

@@ -1,8 +1,8 @@
-"""Real VSS creation, allowed only through a durable hourly scheduling gate.
+"""Real VSS creation, allowed only through a durable configured scheduling gate.
 
 Importing or constructing this module creates no snapshot.  A scheduled caller
 must explicitly invoke ``HourlySnapshotCoordinator.run``.  One attempt per
-volume consumes 3600 seconds even when it fails.  An interrupted/unknown attempt
+volume consumes the selected 15/30/60/120-minute interval even when it fails.  An interrupted/unknown attempt
 blocks later attempts until an operator explicitly reconciles its outcome.
 
 Use one protected, local state database for every entry point on a machine.
@@ -197,7 +197,7 @@ def _utc_now() -> datetime:
 
 
 class HourlySnapshotCoordinator:
-    """Persistent per-volume at-most-once-per-3600s attempt coordinator.
+    """Persistent per-volume attempt coordinator (legacy class name retained).
 
     ``create_fn``, ``volume_resolver``, ``inventory_fn`` and ``clock`` are explicit
     offline-test seams; production callers should use their defaults.  The
@@ -256,6 +256,8 @@ class HourlySnapshotCoordinator:
         return connection.execute("SELECT * FROM snapshot_attempts WHERE volume_id=? ORDER BY sequence DESC LIMIT 1", (volume,)).fetchone()
 
     def _claim(self, root: str, volume: str) -> dict[str, Any]:
+        from .snapshot_settings import interval_minutes
+        interval_seconds = interval_minutes(self.state_db) * 60
         with self._database() as connection:
             connection.execute("BEGIN IMMEDIATE")
             now = self._now()
@@ -265,13 +267,13 @@ class HourlySnapshotCoordinator:
                     attempted_at = datetime.fromisoformat(previous["attempted_at"])
                     if attempted_at.tzinfo is None:
                         raise ValueError
-                    next_at = attempted_at + timedelta(seconds=INTERVAL_SECONDS)
+                    next_at = attempted_at + timedelta(seconds=interval_seconds)
                     unresolved = previous["status"] in ("in_progress", "unknown")
                     if previous["status"] not in ("in_progress", "unknown", "created", "failed", "reconciled_absent", "reconciled_created"):
                         raise ValueError
                 except (ValueError, TypeError, KeyError):
                     raise SnapshotStateError("Stored snapshot state is invalid; refusing creation") from None
-                if unresolved or now < next_at:
+                if unresolved or now < attempted_at or (now < next_at and not getattr(self,'_manual_request_id',None)):
                     reason = "unresolved_previous_attempt" if unresolved else "clock_moved_backwards" if now < attempted_at else "hourly_cooldown"
                     result = {"status": "skipped", "created": False, "attempted": False,
                               "reason": reason, "volume_id": volume, "volume_root": root,
@@ -283,8 +285,9 @@ class HourlySnapshotCoordinator:
             result = {"status": "in_progress", "created": False, "attempted": True,
                       "reason": "reserved_before_creation", "volume_id": volume, "volume_root": root,
                       "attempt_id": str(uuid.uuid4()), "attempted_at": now.isoformat(),
-                      "next_eligible_at": (now + timedelta(seconds=INTERVAL_SECONDS)).isoformat(),
-                      "snapshot": None, "requires_reconciliation": True}
+                      "next_eligible_at": (now + timedelta(seconds=interval_seconds)).isoformat(),
+                      "snapshot": None, "requires_reconciliation": True,
+                      "manual_request_id": getattr(self,"_manual_request_id",None)}
             connection.execute("INSERT INTO snapshot_attempts(attempt_id,volume_id,attempted_at,status,result_json) VALUES(?,?,?,?,?)",
                                (result["attempt_id"], volume, result["attempted_at"], "in_progress", json.dumps(result)))
             connection.execute("COMMIT")
@@ -299,14 +302,26 @@ class HourlySnapshotCoordinator:
                 raise SnapshotStateError("Attempt changed before completion; inspect the persisted outcome")
             connection.execute("COMMIT")
 
-    def run(self, volume_root: str = "C:\\", *, trigger: str = "hourly_schedule") -> dict[str, Any]:
-        if trigger not in ("hourly_schedule", "initial_setup"):
+    def run(self, volume_root: str = "C:\\", *, trigger: str = "hourly_schedule", request_id: str | None = None) -> dict[str, Any]:
+        if trigger not in ("hourly_schedule", "initial_setup", "manual"):
             raise SnapshotPolicyError("Only scheduled or explicitly provisioned initial baselines may create a snapshot")
+        if trigger=='manual':
+            try:
+                if str(uuid.UUID(request_id))!=request_id:raise ValueError
+            except (ValueError,TypeError,AttributeError):raise SnapshotPolicyError('Manual snapshot requires a unique request ID')
         from .snapshot_guard import snapshot_guard
         from .snapshot_retention import policy_path, policy_required, managed_creation
         with snapshot_guard():
+            self._manual_request_id=request_id if trigger=='manual' else None
             root = normalize_volume_root(volume_root)
             volume = _volume_id(self._resolve(root))
+            if trigger=='manual':
+                with self._database() as db:
+                    row=db.execute("SELECT result_json FROM snapshot_attempts WHERE json_extract(result_json,'$.manual_request_id')=?",(request_id,)).fetchone()
+                if row:
+                    saved=json.loads(row[0])
+                    if saved['volume_id']!=volume:raise SnapshotPolicyError('Manual request belongs to another volume')
+                    return saved | {'duplicate_request':True}
             try:
                 managed = policy_path(self.state_db).exists() or policy_required(self.state_db)
             except (OSError, sqlite3.Error):

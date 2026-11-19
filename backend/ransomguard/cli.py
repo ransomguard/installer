@@ -179,6 +179,8 @@ def _response_status(args: argparse.Namespace) -> int:
 
 
 def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=None) -> int:
+    from .scope_settings import apply_observer_scope
+    apply_observer_scope(args)
     import os
     import re
     import time
@@ -199,7 +201,8 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
     live_a = getattr(args, "live_track_a", False)
     live_any = args.live_track_b or live_a
     async_live = live_any and getattr(args, "async_response", False)
-    registry = ProcessRegistry()
+    from .correlation_identity import RecoverableProcessRegistry
+    registry = RecoverableProcessRegistry()
     config = _load_config(args.config) if args.config else {}
     triage = TriageIntake(TriageConfig(**config.get("triage", {})))
     count = 0
@@ -257,7 +260,11 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
         if shared_reader is not None:
             return nullcontext(shared_reader)
         return BufferedReader(WindowsDriverReader(), prefetch, preserve=outbox.preserve_intake) if prefetch else WindowsDriverReader()
-    with prepared_outbox() as outbox, make_reader() as reader, ui_context as ui_sink, response_owner_context as owner:
+    from .live_console import LiveConsole
+    console_enabled = getattr(args, 'live_console', False) or (args.ready_file and (Path(args.ready_file).parent/'live-console.enabled').exists())
+    console_context = LiveConsole(control_path=Path(args.ready_file).parent/'console-display.json' if args.ready_file else None) if console_enabled else nullcontext()
+    from .intake_scheduling import intake_priority
+    with intake_priority(shared_reader), prepared_outbox() as outbox, make_reader() as reader, ui_context as ui_sink, response_owner_context as owner, console_context as live_console:
         retention = RawRetention(outbox.db,grace_seconds=max(120,triage.config.window_seconds+triage.config.cooldown_seconds+30),
                                  batch_limit=128,capacity_limit=512,interval=1) if getattr(args,"ui_durable",False) else None
         response_ledger = ResponseLedger(outbox.db) if live_any and not async_live else None
@@ -298,6 +305,7 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
         from .observer_health import ObserverHealth
         health = ObserverHealth(getattr(args, 'ready_file', None), args.db,
                                 metadata=getattr(args, '_resident_info', None), stop_check_interval=.1)
+        health.metadata['intake_thread_priority'] = getattr(reader, 'intake_priority', 'unchanged')
         health.publish(initial_status, intake=reader.diagnostics() if prefetch else None, force=True)
         print("Observation mode: kernel -> durable outbox / Track B candidates"
               + (" / local UI IPC" if publisher else "")
@@ -305,7 +313,9 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                  ". Live JEV/kill/recovery/firewall actions are not enabled."))
         raw = None
         from .storage_transaction import PassiveBatch
-        storage_batch = PassiveBatch(outbox,limit=64,max_seconds=.05) if not live_any or async_live else None
+        storage_batch = PassiveBatch(outbox,limit=256,max_seconds=.05) if not live_any or async_live else None
+        from .internal_collection import InternalCollection
+        internal_collection = InternalCollection(Path(args.ready_file).parent) if args.ready_file else None
         last_status_poll = time.monotonic()
         try:
             while args.limit == 0 or raw_events_read < args.limit:
@@ -318,6 +328,11 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                 if reload_requested is not None and reload_requested():
                     if pipeline: pipeline.request_stop()
                     if not pipeline or pipeline.jobs.stopped: break
+                if internal_collection:
+                    internal_collection.tick()
+                    health.metadata['identity_correlation'] = dict(registry.stats, epoch=registry.epoch, ever_loss_detected=registry.ever_loss_detected)
+                    health.metadata['internal_collection'] = {'collect':internal_collection.collect,'excluded':internal_collection.excluded,'observed':internal_collection.observed,'error':internal_collection.error}
+                    if publisher: publisher.include_internal_storage = internal_collection.collect
                 if pipeline: pipeline.tick()
                 # Prioritize incoming records during bursts. Completed evidence
                 # remains durable until a later short maintenance slice.
@@ -343,6 +358,7 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                     continue
                 try:
                     event = decode_event(raw)
+
                 except ProtocolError as exc:
                     if storage_batch:storage_batch.flush()
                     registry.invalidate()
@@ -350,8 +366,15 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                     record = triage.reset(reason="protocol_error")
                     outbox.append(record.kind, record.payload)
                     continue
+                registry.update(event)
+                if internal_collection and internal_collection.exclude(event):
+                    for skipped in triage.ingest(event, correlated_create_time=None, ignore_file_evidence=True):
+                        outbox.append(skipped.kind, skipped.payload)
+                    raw_events_read += 1
+                    raw = None
+                    continue
+                if live_console: live_console.offer(event)
                 with (storage_batch.record(raw) if storage_batch else nullcontext()):
-                    registry.update(event)
                     if pipeline: pipeline.observe(event, registry)
                     raw_events_read += 1
                     self_storage_io = storage_filter.matches(event)
@@ -425,7 +448,10 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                                     if retention: retention.resolution(result,a_outcomes)
                                 response_results[result.state] = response_results.get(result.state, 0) + 1
                     for record in triage.ingest(event, correlated_create_time=correlated_create_time,
-                                                ignore_file_evidence=self_storage_io):
+                                                ignore_file_evidence=self_storage_io,
+                                              identity_source=registry.identity_source):
+                        if record.kind in ('track_b_candidate', 'track_b_deferred'):
+                            record.payload['identity_resolution'] = dict(registry.identity_resolution)
                         outbox.append(record.kind, record.payload)
                         if retention and record.kind in ("track_b_candidate","track_b_deferred"):
                             retention.protect(record.payload.get("pid",event.pid),record.payload.get("correlated_process_create_time"),record.kind)
@@ -537,6 +563,8 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                 outbox.preserve_intake([raw], 'failed_in_flight_record_may_duplicate_processed_event')
             raise
         finally:
+            registry.close()
+            if internal_collection:internal_collection.close()
             if storage_batch:storage_batch.flush()
             if pipeline:
                 pipeline.request_stop()
@@ -584,7 +612,8 @@ def main(argv: list[str] | None = None) -> int:
     observe.add_argument("--ui-durable", action="store_true", help="Persist sampled UI events until the dashboard commits and acknowledges them (requires --ui)")
     observe.add_argument("--ready-file", help="Local launcher handshake written only after driver registration and outbox startup")
     observe.add_argument("--ui-file-rate", type=int, default=10, help="UI file-event limit per second (1..100); outbox remains complete")
-    observe.add_argument("--prefetch-events", type=int, choices=range(0,16385), metavar="0..16384", default=0, help="Bounded passive intake buffer; no event eviction")
+    observe.add_argument("--prefetch-events", type=int, choices=range(0,131073), metavar="0..131072", default=0, help="Bounded passive intake buffer; 384 MiB raw-byte limit; no event eviction")
+    observe.add_argument("--live-console", action="store_true", help="Show actual received kernel events in a bounded collector console")
     observe.add_argument("--quiet-events", action="store_true", help="Suppress per-event console writes; durable raw records are unchanged")
     observe.add_argument("--resident", action="store_true", help="Keep passive kernel intake alive across Python worker replacements")
     observe.add_argument("--resident-start-gate", help="Initial migration only: local gate opened after the previous process exits")
@@ -812,3 +841,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

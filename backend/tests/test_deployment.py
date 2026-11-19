@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('deployment_configure', ROOT/'deployment'/'configure.py')
@@ -27,6 +29,14 @@ class DeploymentTests(unittest.TestCase):
     def test_check_does_not_write(self):
         self.run_config(check=True)
         self.assertFalse(self.runtime.exists())
+
+    def test_isolated_python_can_import_launchers_without_running_services(self):
+        self.run_config()
+        for name in ('Start-RansomGuard.py', 'Watch-RansomGuard.py'):
+            code = 'import runpy;runpy.run_path(' + repr(str(self.runtime/name)) + ",run_name='import_check')"
+            result = subprocess.run([sys.executable, '-I', '-c', code], capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+        self.assertFalse((self.runtime/'observer-ready.json').exists())
 
     def test_space_paths_roundtrip_and_idempotency_preserve_evidence(self):
         expected = self.run_config()

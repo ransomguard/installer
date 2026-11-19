@@ -34,6 +34,9 @@ class ResponseLedger:
         )""")
         self.db.commit()
 
+        self.db.execute('CREATE TABLE IF NOT EXISTS exempt_response_history AS SELECT * FROM live_response_attempts WHERE 0')
+        self.db.commit()
+
     @staticmethod
     def _validate(pid: int, process_create_time: int, incident_id: str) -> None:
         if type(pid) is not int or not 1 <= pid <= 0xFFFFFFFF:
@@ -48,6 +51,10 @@ class ResponseLedger:
         self._validate(pid, process_create_time, incident_id)
         self.db.execute("BEGIN IMMEDIATE")
         try:
+            # A prior exception is not a permanent grant for this process.
+            # Re-evaluate current policy on the next eligible detection.
+            self.db.execute("INSERT INTO exempt_response_history SELECT * FROM live_response_attempts WHERE pid=? AND process_create_time=? AND state='EXEMPTED'", (pid, process_create_time))
+            self.db.execute("DELETE FROM live_response_attempts WHERE pid=? AND process_create_time=? AND state='EXEMPTED'", (pid, process_create_time))
             cursor = self.db.execute(
                 """INSERT OR IGNORE INTO live_response_attempts
                    (incident_id,pid,process_create_time,claimed_at_utc,state)
@@ -62,7 +69,7 @@ class ResponseLedger:
         return was_claimed
 
     def finish(self, incident_id: str, *, state: str, reason: str | None) -> None:
-        if not isinstance(state, str) or state not in ("RELEASED", "REVIEW_REQUIRED"):
+        if not isinstance(state, str) or state not in ("RELEASED", "REVIEW_REQUIRED", "EXEMPTED"):
             raise ValueError("Only terminal live-response states may be recorded")
         if reason is not None and (not isinstance(reason, str) or len(reason) > 256):
             raise ValueError("Reason must be a bounded string or None")

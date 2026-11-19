@@ -42,6 +42,14 @@ class CounterHistory:
             self.state = json.loads(self.path.read_text(encoding='utf-8'))
             if self.state.get('schema') != 1:
                 raise ValueError('Unknown driver counter history schema')
+        self.loss_baseline = 0
+        reset_path = self.path.with_suffix('.loss-reset.json') if self.path else None
+        if reset_path and reset_path.exists():
+            reset = json.loads(reset_path.read_text(encoding='utf-8'))
+            baseline = reset.get('events_dropped_baseline')
+            if type(baseline) is not int or baseline < 0:
+                raise ValueError('Invalid user loss counter baseline')
+            self.loss_baseline = baseline
         self.saved_at = 0
 
     def close_epoch(self, epoch_id, *, reason):
@@ -88,4 +96,5 @@ class CounterHistory:
         if force or reset or time.monotonic() - self.saved_at >= 2:
             atomic_json(self.path, self.state)
             self.saved_at = time.monotonic()
-        return {**raw, **totals}
+        # User-requested display epoch; raw lifetime totals and detection remain intact.
+        return {**raw, **totals, 'events_dropped': max(0, totals['events_dropped'] - self.loss_baseline)}

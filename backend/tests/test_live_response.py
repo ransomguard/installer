@@ -176,6 +176,19 @@ class ResponseTests(unittest.TestCase):
         self.assertEqual(replay.reason, "host_outbound_containment_unconfirmed")
         self.assertTrue(self.fake_fw.active)
 
+    def test_plan_discovery_error_is_auditable_and_retains_containment(self):
+        def unavailable_plan():
+            raise OSError('snapshot discovery failed ' + 'x' * 600)
+        item = self.respond_b(recovery_plan_provider=unavailable_plan)
+        self.assertEqual(item.reason, 'recovery_plan_selection_failed')
+        self.assertTrue(item.firewall_hold_retained)
+        self.assertTrue(self.fake_fw.active)
+        self.assertFalse(self.recovery.calls)
+        error = next(row['data'] for row in self.box.pending()
+                     if row['event_type'] == 'recovery_plan_error')
+        self.assertEqual(error['error_type'], 'OSError')
+        self.assertEqual(len(error['detail']), 500)
+
     def test_jev_failure_leaves_global_hold(self):
         self.jev.fail = True
         item = self.respond_b()

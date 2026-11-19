@@ -2,9 +2,9 @@
 from pathlib import Path
 import argparse,hashlib,json,shutil,subprocess,sys,zipfile,uuid
 B=Path(__file__).resolve().parent;ROOT=B.parents[1];P=B/'payload'
-parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--signed-drivers',type=Path);group.add_argument('--test-pc',action='store_true');parser.add_argument('--output',type=Path);args=parser.parse_args()
+parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--signed-drivers',type=Path);group.add_argument('--test-pc',action='store_true');parser.add_argument('--output',type=Path);parser.add_argument('--ui-asar',type=Path);args=parser.parse_args()
 channel='internal-preview' if args.signed_drivers else 'internal-test' if args.test_pc else 'isolated-lab'
-version='0.6.0-preview.3'
+version='0.6.0-preview.15'
 P=B/('staging-'+version+'-'+uuid.uuid4().hex[:8])
 def digest(path):
     with Path(path).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
@@ -13,6 +13,15 @@ def copytree(src,dst):
 P.mkdir(exist_ok=True)
 baseline=ROOT/'work/prototype-installer-20261118/payload'
 for name in ('python','ui','firewall','bridge'):copytree(baseline/name,P/name)
+if args.ui_asar:
+    shutil.copy2(args.ui_asar,P/'ui/resources/app.asar')
+    unpacked=Path(str(args.ui_asar)+'.unpacked')
+    if not unpacked.is_dir():raise SystemExit('Matching app.asar.unpacked is required')
+    target=P/'ui/resources/app.asar.unpacked'
+    if target.exists():shutil.rmtree(target)
+    shutil.copytree(unpacked,target)
+from build_intake import build as build_intake
+build_intake()
 copytree(B/'backend',P/'backend')
 (P/'setup').mkdir(exist_ok=True)
 for f in (B/'src').glob('*.py'):shutil.copy2(f,P/'setup'/f.name)
@@ -24,7 +33,7 @@ for name,folder in [('Anti_Ransom_Driver','Core'),('Anti_Ransom_FsFilter','Filte
         copytree(source,P/'drivers'/name)
     else:shutil.copy2(B/'drivers'/folder/(name+'.sys'),P/'drivers'/(name+'.sys'))
 compiler=r'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-compile_args=[compiler,'/nologo','/target:winexe','/platform:x64','/win32manifest:'+str(B/'src/app.manifest'),
+compile_args=[compiler,'/win32icon:'+str(B/'assets/Ransom0.ico'),'/nologo','/target:winexe','/platform:x64','/win32manifest:'+str(B/'src/app.manifest'),
  '/r:System.Windows.Forms.dll','/r:System.Drawing.dll','/r:System.Web.Extensions.dll','/r:System.IO.Compression.dll']
 subprocess.run(compile_args+['/out:'+str(P/'RansomGuard.exe'),str(B/'src/Manager.cs')],check=True)
 subprocess.run([compiler,'/nologo','/target:exe','/platform:x64','/r:System.Windows.Forms.dll','/r:System.Web.Extensions.dll',
@@ -44,9 +53,10 @@ zip_path=B/('payload-'+version+'-'+channel+'.zip')
 with zipfile.ZipFile(zip_path,'w',zipfile.ZIP_DEFLATED,compresslevel=5) as z:
     for name in list(files)+['payload-manifest.json']:z.write(P/name,name)
 out=args.output or ROOT/'outputs/school-demo-20261118';out.mkdir(parents=True,exist_ok=True)
-exe=out/('RansomGuard-'+('Internal' if args.signed_drivers else 'TestPC' if args.test_pc else 'Lab')+'-Setup.exe')
+exe=out/('Ransom0-Setup.exe' if args.test_pc else 'Ransom0-'+('Internal' if args.signed_drivers else 'Lab')+'-Setup.exe')
 subprocess.run(compile_args+['/resource:'+str(zip_path)+',payload.zip','/out:'+str(exe),str(B/'src/Manager.cs')],check=True)
 report={'file':str(exe),'bytes':exe.stat().st_size,'sha256':digest(exe),'version':version,'channel':channel,'payload_files':len(files),
  'payload':str(P),'zip':str(zip_path),'ui_asar_sha256':digest(P/'ui/resources/app.asar'),'baseline_ui_unchanged':digest(P/'ui/resources/app.asar')==digest(baseline/'ui/resources/app.asar')}
-shutil.copy2(P/'RansomGuard-Check.exe',out/'RansomGuard-Check.exe')
+shutil.copy2(P/'RansomGuard-Check.exe',out/'Ransom0-Check.exe')
 (out/('build-test-pc.json' if args.test_pc else 'build.json')).write_text(json.dumps(report,indent=2));print(json.dumps(report))
+

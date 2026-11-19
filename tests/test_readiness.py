@@ -18,6 +18,14 @@ class ReadinessTests(unittest.TestCase):
     def test_arm64_is_not_x64(self):
         i=self.good();i['architecture']='ARM64'
         self.assertTrue(blockers(i,'internal-preview'))
+    def test_unified_test_channel_accepts_vm_and_host_but_keeps_security_gates(self):
+        request={'internal_test':True,'acknowledge_pc_wide_containment':True}
+        for model in ('VMware Virtual Platform','Physical PC'):
+            info={'computer':{'model':model},'readiness':self.good()}
+            self.assertEqual(check_channel({'channel':'internal-test'},info,request,'.',None)['channel'],'internal-test')
+            for field,value in (('secure_boot',True),('test_signing',False),('architecture','ARM64')):
+                bad={'computer':info['computer'],'readiness':dict(self.good(),**{field:value})}
+                with self.assertRaises(ValueError):check_channel({'channel':'internal-test'},bad,request,'.',None)
     def test_test_pc_needs_existing_boot_policy_and_explicit_acknowledgement(self):
         info={'computer':{'model':'Physical PC'},'readiness':self.good()}
         request={'internal_test':True,'acknowledge_pc_wide_containment':True}
@@ -31,7 +39,7 @@ class ReadinessTests(unittest.TestCase):
             self.assertTrue(blockers(i,'isolated-lab'))
     def test_disconnected_install_never_resolves_or_allows_unvalidated_address(self):
         calls=[]
-        def ps(code,data,**kwargs):calls.append(data);return json.dumps({'configured':True,'addresses':data['addresses']})
+        def ps(code,data,**kwargs):calls.append(data);return json.dumps({'configured':True,'verified':True,'addresses':data['addresses']})
         with patch('jev_network.socket.getaddrinfo') as resolve:
             self.assertEqual(configure('bridge','backup',ps,resolve_endpoint=False)['addresses'],[])
             resolve.assert_not_called()
@@ -40,3 +48,9 @@ class ReadinessTests(unittest.TestCase):
         with patch('jev_network.socket.getaddrinfo',return_value=[(socket.AF_INET,0,0,'',('127.0.0.1',443))]):
             with self.assertRaises(ValueError):configure('bridge','backup',ps)
         self.assertEqual(len(calls),2)
+    def test_unverified_or_failed_firewall_setup_never_reports_success(self):
+        for output in ({'configured':True},{'configured':False,'verified':True}):
+            with self.assertRaises(ValueError):
+                configure('bridge','backup',lambda *a,**kw:json.dumps(output),resolve_endpoint=False)
+        def failed(*a,**kw):raise TimeoutError('provider timeout')
+        with self.assertRaises(TimeoutError):configure('bridge','backup',failed,resolve_endpoint=False)

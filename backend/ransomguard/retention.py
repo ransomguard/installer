@@ -14,9 +14,10 @@ ELIGIBLE_RAW = """SELECT 1 FROM events e JOIN raw_retention r ON r.event_id=e.ev
  AND NOT EXISTS(SELECT 1 FROM retention_holds h
   WHERE h.pid=r.pid AND (h.generation=0 OR h.generation=r.generation)
   AND NOT EXISTS(SELECT 1 FROM retention_resolution z
-    WHERE z.pid=h.pid AND z.generation=h.generation AND z.state='RELEASED' AND z.ui_finalized=1
-    AND EXISTS(SELECT 1 FROM ui_delivery_tracking t WHERE t.incident_id=z.incident_id)
-    AND NOT EXISTS(SELECT 1 FROM ui_delivery_tracking t WHERE t.incident_id=z.incident_id AND t.acked=0)))"""
+    WHERE z.pid=h.pid AND z.generation=h.generation AND z.ui_finalized=1
+    AND (z.state='EXEMPTED' OR (z.state='RELEASED'
+      AND EXISTS(SELECT 1 FROM ui_delivery_tracking t WHERE t.incident_id=z.incident_id)
+      AND NOT EXISTS(SELECT 1 FROM ui_delivery_tracking t WHERE t.incident_id=z.incident_id AND t.acked=0)))))"""
 
 def release_completed_capacity(db, *, limit=10000):
     """Free intake slots, NOT evidence, ACKs, holds, or UI history.
@@ -82,7 +83,10 @@ class RawRetention:
                   AND EXISTS(SELECT 1 FROM raw_retention r WHERE r.event_id=events.event_id
                     AND r.processed IS NOT NULL AND r.ui_state IN ('acked','not_required'))""",(event_id,))
     def resolution(self,result,outcomes):
-        with self.db:self.db.execute('INSERT OR REPLACE INTO retention_resolution VALUES(?,?,?,?,?)',(result.process.pid,result.process.create_time,result.incident_id,result.state,int(bool(outcomes) and all(x=='sent' for x in outcomes))))
+        # Exemptions have a durable outbox audit but no fabricated threat alert.
+        # Each raw event must still have its own UI receipt before deletion.
+        finalized = result.state == 'EXEMPTED' or (bool(outcomes) and all(x=='sent' for x in outcomes))
+        with self.db:self.db.execute('INSERT OR REPLACE INTO retention_resolution VALUES(?,?,?,?,?)',(result.process.pid,result.process.create_time,result.incident_id,result.state,int(finalized)))
     def cleanup(self,*,now=None,force=False):
         now=time.time() if now is None else now
         if not force and now-self.last_run<self.interval:return 0

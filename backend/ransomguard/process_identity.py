@@ -68,6 +68,18 @@ class WindowsProcessSession:
             self.close()
             raise
 
+    def image_path(self) -> str:
+        if self.handle is None:
+            raise ProcessIdentityError('Process identity handle is closed')
+        query = self.k.QueryFullProcessImageNameW
+        query.argtypes = [HANDLE, DWORD, C.c_wchar_p, C.POINTER(DWORD)]
+        query.restype = BOOL
+        size = DWORD(32768)
+        buffer = C.create_unicode_buffer(size.value)
+        if not query(self.handle, 0, buffer, C.byref(size)):
+            raise ProcessIdentityError('Cannot query exact live executable path')
+        return buffer.value
+
     def is_exited(self) -> bool:
         if self.handle is None:
             raise ProcessIdentityError("Process identity handle is closed")

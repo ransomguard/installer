@@ -84,6 +84,8 @@ class JevTests(unittest.TestCase):
                                         model="fixed-version", timeout=3.5, max_retries=0)
         self.assertIsInstance(session.calls[0]["state"], str)
         self.assertEqual(json.loads(session.calls[0]["state"]), state)
+        self.assertEqual(verdict["request_state"], json.loads(session.calls[0]["state"]))
+        self.assertNotIn("offline-test-key", json.dumps(verdict))
         self.assertEqual(session.calls[0]["questions"]["is_ransomware"]["type"], "noul")
         self.assertTrue(session.closed)
 

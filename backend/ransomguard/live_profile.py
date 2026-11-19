@@ -28,8 +28,14 @@ def observer_options(path, *, state_db):
     from .response_commands import profile_from_config, thresholds_from_config
     config=json.loads(Path(paths[0]).read_text(encoding='utf-8-sig'))
     profile=profile_from_config(config);thresholds_from_config(config)
-    if profile.jev_url != 'https://api.typesafe.ai' or profile.extra_https_targets:
-        raise ValueError('Only the fixed JEV endpoint is authorized')
+    from .firewall_control import FirewallProfile
+    approved = value.get('approved_extra_https_targets', [])
+    if not isinstance(approved, list):
+        raise ValueError('Approved HTTPS targets must be an explicit list')
+    approved_profile = FirewallProfile('https://api.typesafe.ai', tuple(approved))
+    if (profile.jev_url != approved_profile.jev_url
+            or profile.extra_https_targets != approved_profile.extra_https_targets):
+        raise ValueError('Network exceptions must match the explicitly approved startup profile')
     manifest=json.loads(Path(paths[1]).read_text(encoding='utf-8-sig'))
     if manifest.get('schema_version')!=1 or not isinstance(manifest.get('manifest'),list) or not 1<=len(manifest['manifest'])<=5000:
         raise ValueError('An approved finite recovery manifest is required')

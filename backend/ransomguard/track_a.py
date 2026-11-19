@@ -7,8 +7,13 @@ class TrackACorroborator:
     def __init__(self, prefix):
         self.prefix = prefix.replace('/', '\\').rstrip('\\').casefold() + '\\'
         self.writes = OrderedDict()
+        self.epoch = None
 
     def ingest(self, event, registry):
+        epoch = getattr(registry, 'epoch', None)
+        if epoch != self.epoch:
+            self.writes.clear()
+            self.epoch = epoch
         if registry.loss_detected:
             self.writes.clear()
             return None

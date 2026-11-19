@@ -11,44 +11,34 @@ using System.Windows.Forms;
 
 class RansomGuardManager : Form {
     string package;
-    TextBox folder = new TextBox(), log = new TextBox(), key = new TextBox();
-    CheckBox lab = new CheckBox(), consent = new CheckBox();
-    NumericUpDown budget = new NumericUpDown();
+    TextBox log = new TextBox();
+    CheckBox lab = new CheckBox();
     Button install = new Button(), start = new Button(), status = new Button(), remove = new Button();
     bool internalPreview;
     JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = 1024*1024 };
     public RansomGuardManager(string root, bool uninstallRequested) {
-        package=root;Text="RansomGuard 설치 및 관리";Width=780;Height=680;
+        Icon=System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        package=root;Text="Ransom0 설치 및 관리";Width=780;Height=680;
         var manifest=json.Deserialize<Dictionary<string,object>>(File.ReadAllText(Path.Combine(root,"payload-manifest.json")));
         internalPreview=!Object.Equals(manifest["channel"],"isolated-lab");
         StartPosition=FormStartPosition.CenterScreen;MinimumSize=new System.Drawing.Size(780,680);
-        var title=new Label{Text="RansomGuard 시제품 — 보호 폴더 설정",Left=20,Top=18,Width=720,Height=30,Font=new System.Drawing.Font("Malgun Gothic",14)};Controls.Add(title);
-        Controls.Add(new Label{Text=Object.Equals(manifest["channel"],"internal-preview")?"비공개 내부 시험판입니다. Microsoft 드라이버 서명을 설치 시 검증합니다.":internalPreview?"별도로 시험 서명을 허용한 승인된 시험 PC용입니다. 보안 설정을 자동 변경하지 않습니다.":"현재 패키지는 시험 서명된 VM용입니다. 일반 PC 기본 보안 설정으로는 설치할 수 없습니다.",Left=20,Top=55,Width=720,Height=34});
-        Controls.Add(new Label{Text="보호할 폴더",Left=20,Top=102,Width=110});
-        folder.SetBounds(130,98,500,25);Controls.Add(folder);
-        var browse=new Button{Text="찾아보기",Left=640,Top=97,Width=100};Controls.Add(browse);
-        browse.Click+=(s,e)=>{using(var dialog=new FolderBrowserDialog{Description="복구를 적용할 폴더를 선택하세요."}){if(dialog.ShowDialog()==DialogResult.OK)folder.Text=dialog.SelectedPath;}};
-        consent.Text="사건 발생 시 선택 폴더의 스냅샷에 있던 파일을 복원하는 데 동의합니다.";consent.SetBounds(20,140,720,25);Controls.Add(consent);
-        Controls.Add(new Label{Text="스냅샷 이후의 정상 수정도 되돌아갈 수 있습니다. 새 파일·ACL·암호화 파일 등은 완전 복구 범위가 아닙니다.\n최대 5,000파일 / 파일당 512MiB / 합계 2GiB. 목록을 완성하지 못하면 복구 준비 완료로 표시하지 않습니다.",Left=38,Top=168,Width=700,Height=44});
-        lab.Text=internalPreview?"내부 시험용 PC입니다. 위협 대응 시 PC 전체 통신이 제한되는 데 동의합니다.":"시험 VM입니다. 새 설치는 JEV 외 통신을 차단하고, 기존 설치는 네트워크 정책을 유지합니다.";lab.SetBounds(20,220,720,28);Controls.Add(lab);
-        Controls.Add(new Label{Text="스냅샷 공간 목표 (GiB)",Left=20,Top=260,Width=190});
-        budget.Minimum=4;budget.Maximum=32;budget.Value=8;budget.SetBounds(215,255,65,25);Controls.Add(budget);
-        Controls.Add(new Label{Text="복구·검토 중인 스냅샷은 목표를 초과해도 보존합니다.",Left=300,Top=260,Width=440});
-        Controls.Add(new Label{Text="JEV 키 (선택)",Left=20,Top=300,Width=110});key.SetBounds(130,296,610,25);key.UseSystemPasswordChar=true;Controls.Add(key);
-        Controls.Add(new Label{Text="기존 키는 빈칸으로 두면 유지합니다. 키는 설치 로그에 남기지 않습니다.",Left=130,Top=325,Width=600});
+        var title=new Label{Text="Ransom0 시제품 — 설치 및 실행",Left=20,Top=18,Width=720,Height=30,Font=new System.Drawing.Font("Malgun Gothic",14)};Controls.Add(title);
+        Controls.Add(new Label{Text=Object.Equals(manifest["channel"],"internal-preview")?"비공개 내부 시험판입니다. Microsoft 드라이버 서명을 설치 시 검증합니다.":internalPreview?"VM·호스트 PC 공용 시험판입니다. 시험 서명 허용·Secure Boot OFF가 필요하며 자동 변경하지 않습니다.":"현재 패키지는 시험 서명된 VM용입니다. 일반 PC 기본 보안 설정으로는 설치할 수 없습니다.",Left=20,Top=55,Width=720,Height=34});
+        Controls.Add(new Label{Text="JEV API 키와 보호·복구 폴더는 설치 후 Ransom0의 설정에서 등록합니다.\nAPI 키·폴더·첫 복구 기준이 준비되기 전에는 자동 대응이 활성화되지 않습니다.\n업데이트 시 기존 보호 폴더와 네트워크 정책은 유지됩니다.\n설치 시 기존 인터넷·방화벽 설정을 유지합니다. 위협 대응 시 격리로 원격 접속이 끊길 수 있습니다.",Left=20,Top=102,Width=720,Height=90});
+        lab.Text=internalPreview?"승인된 시험 VM/PC입니다. 위협 자동 대응 시 PC 전체 네트워크 격리에 동의합니다.":"시험 VM입니다. 설치 시 네트워크를 유지하며 위협 대응 시 격리에 동의합니다.";lab.SetBounds(20,220,720,28);Controls.Add(lab);
         install.Text="설치 / 업데이트";install.SetBounds(20,365,160,32);start.Text="실행";start.SetBounds(195,365,110,32);status.Text="상태 확인";status.SetBounds(320,365,120,32);
         Controls.Add(install);Controls.Add(start);Controls.Add(status);
         remove.Text="제거";remove.SetBounds(455,365,110,32);Controls.Add(remove);
         log.Multiline=true;log.ReadOnly=true;log.ScrollBars=ScrollBars.Both;log.SetBounds(20,412,720,210);log.Anchor=AnchorStyles.Top|AnchorStyles.Bottom|AnchorStyles.Left|AnchorStyles.Right;Controls.Add(log);
         install.Click+=async(s,e)=>{
-            if(!lab.Checked||!consent.Checked||!Directory.Exists(folder.Text)){MessageBox.Show("기존 보호 폴더와 두 확인 항목을 선택하세요.");return;}
-            var request=new Dictionary<string,object>{{"protected_root",folder.Text},{"isolated_lab",!internalPreview},{"internal_test",internalPreview},{"acknowledge_pc_wide_containment",lab.Checked},{"jev_only_network",!internalPreview},{"acknowledge_folder_revert",true},{"snapshot_budget_gib",(int)budget.Value},{"api_key",key.Text}};
-            key.Clear();await Run("install",json.Serialize(request));
+            if(!lab.Checked){MessageBox.Show("시험 환경 및 통신 제한 동의 항목을 확인하세요.");return;}
+            var request=new Dictionary<string,object>{{"isolated_lab",!internalPreview},{"internal_test",internalPreview},{"acknowledge_pc_wide_containment",lab.Checked}};
+            await Run("install",json.Serialize(request));
         };
         start.Click+=async(s,e)=>await Run("start",null);
         status.Click+=async(s,e)=>await Run("status",null);
         remove.Click+=async(s,e)=>{
-            if(MessageBox.Show("RansomGuard 보호 기능을 제거할까요?\n복구·검토 중인 사건이 있으면 제거를 거부합니다. 기록·스냅샷·네트워크 정책은 보존합니다.","RansomGuard 제거",MessageBoxButtons.YesNo)==DialogResult.Yes)await Run("uninstall",null);
+            if(MessageBox.Show("Ransom0 보호 기능을 제거할까요?\n복구·검토 중인 사건이 있으면 제거를 거부합니다. 기록·스냅샷·네트워크 정책은 보존합니다.","Ransom0 제거",MessageBoxButtons.YesNo)==DialogResult.Yes)await Run("uninstall",null);
         };
         Shown+=async(s,e)=>await Run(uninstallRequested?"plan-uninstall":"status",null);
     }
@@ -72,7 +62,6 @@ class RansomGuardManager : Form {
             var d=json.Deserialize<Dictionary<string,object>>(line);
             if(command=="status"){
                 var r=(Dictionary<string,object>)d["recovery"];var c=(Dictionary<string,object>)d["counters"];
-                if(r.ContainsKey("protected_root"))BeginInvoke((Action)(()=>{if(folder.Text.Length==0)folder.Text=Convert.ToString(r["protected_root"]);}));
                 return "수집 상태: "+(Object.Equals(d["collector_ready"],true)?"정상":"시작 대기 또는 점검 필요")+Environment.NewLine+
                     "대응 모드: "+ResponseMode(d)+Environment.NewLine+
                     "복구 준비: "+(r.ContainsKey("ready")&&Object.Equals(r["ready"],true)?"사용 가능한 복구 목록 있음":"준비되지 않음")+Environment.NewLine+
@@ -94,7 +83,8 @@ class RansomGuardManager : Form {
         return value;
     }
     [STAThread] static int Main(string[] args){
-        Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+        bool extractOnly=args.Length>0&&args[0]=="--extract-only";
+        if(!extractOnly){Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);}
         string root=Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
         try{
             using(var packed=Assembly.GetExecutingAssembly().GetManifestResourceStream("payload.zip")){
@@ -110,6 +100,6 @@ class RansomGuardManager : Form {
             }
             if(args.Length>0&&args[0]=="--extract-only"){Console.WriteLine(root);return 0;}
             Application.Run(new RansomGuardManager(root,args.Length>0&&args[0]=="--uninstall"));return 0;
-        }catch(Exception ex){MessageBox.Show(ex.Message,"RansomGuard");return 1;}
+        }catch(Exception ex){if(extractOnly)Console.Error.WriteLine(ex.ToString());else MessageBox.Show(ex.Message,"Ransom0");return 1;}
     }
 }

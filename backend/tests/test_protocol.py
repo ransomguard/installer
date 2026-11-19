@@ -67,3 +67,10 @@ class ProtocolTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class RenameCompletionTests(unittest.TestCase):
+    def test_completed_and_legacy_records(self):
+        for flags, expected in [(16, "unknown_pre_operation"), (16|128, "failed_at_filter_completion"), (16|128|256, "succeeded_at_filter_completion")]:
+            raw = bytearray(file_record(5))
+            struct.pack_into("<I", raw, 48, flags)
+            self.assertEqual(decode_event(bytes(raw)).fields["operation_result"], expected)

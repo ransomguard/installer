@@ -86,6 +86,10 @@ class DurableUiDelivery:
             except ValueError:
                 break
             items = candidate
+        # Opening an idle pipe makes the UI write connection logs, which the
+        # kernel observes as new file events. Do not generate work from idleness.
+        if not items and status is None:
+            return False
         with self.factory() as pipe:
             if items:
                 try:

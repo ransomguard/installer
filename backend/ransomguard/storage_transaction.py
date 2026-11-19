@@ -51,7 +51,7 @@ class PassiveBatch:
     visible only after commit; a separate ledger reservation precedes effects.
     """
     def __init__(self, outbox, *, limit=32, max_seconds=.02, clock=time.monotonic):
-        if not 1 <= limit <= 64 or not 0 < max_seconds <= .05:
+        if not 1 <= limit <= 256 or not 0 < max_seconds <= .05:
             raise ValueError('Invalid passive storage batch bounds')
         self.outbox=outbox;self.limit=limit;self.max_seconds=max_seconds;self.clock=clock
         self.scope=None;self.raws=[];self.started=0

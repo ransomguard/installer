@@ -3,6 +3,7 @@
 Only kernel attempts are counted. No fabricated successful write, hash change,
 malware verdict or complete coverage is implied by this collection window.
 """
+from .extension_evidence import extension_change_attempt, rename_completion
 import copy
 import time
 
@@ -54,6 +55,16 @@ class EvidenceWindow:
             counts['write_attempts' if event.event_type == 4 else 'rename_attempts'] += 1
             counts['high_entropy_writes'] += int(event.event_type == 4 and bool(event.fields.get('flags', 0) & 8))
             counts['retained_observations'] += 1
+            if event.event_type == 5:
+                changed = extension_change_attempt(event)
+                outcome = rename_completion(event)
+                counts['rename_' + outcome] = counts.get('rename_' + outcome, 0) + 1
+                if changed is True:
+                    counts['extension_change_' + outcome] = counts.get('extension_change_' + outcome, 0) + 1
+                for name, amount in [('extension_change_attempts', int(changed is True)),
+                                     ('extension_comparison_unknown', int(changed is None))]:
+                    counts[name] = counts.get(name, 0) + amount
+
             item['counts_scope'] = 'initial_triage_window_plus_following_collection_window'
             item['last_source_sequence'] = event.sequence
             item['last_source_filetime'] = event.filetime

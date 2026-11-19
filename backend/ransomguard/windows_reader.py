@@ -40,6 +40,17 @@ class WindowsDriverReader:
         self.handle = None
         self.registered = False
         self.batch_supported = None
+        self.native_read = None
+        self.native_read_seconds = 0.0
+        self.native_read_calls = 0
+        from pathlib import Path
+        native_path = Path(__file__).resolve().parent.parent / 'native' / 'rg_intake.dll'
+        if native_path.is_file():
+            self.native_library = C.CDLL(str(native_path))
+            self.native_read = self.native_library.RgReadBatch
+            self.native_read.argtypes = [HANDLE, DWORD, C.c_void_p, DWORD, DWORD,
+                                        C.POINTER(DWORD), C.POINTER(C.c_double)]
+            self.native_read.restype = DWORD
         handle = self.k.CreateFileW(device_path, 0xC0000000, 0, None, 3, 0x40000000, None)
         if handle == C.c_void_p(-1).value:
             raise C.WinError(C.get_last_error())
@@ -110,7 +121,9 @@ class WindowsDriverReader:
                     raise C.WinError(error)
             if returned.value > output_size:
                 raise RuntimeError("Driver returned more bytes than the supplied buffer")
-            return outgoing.raw[:returned.value] if outgoing is not None else b""
+            # Copy only initialized payload bytes, not the entire reserved batch
+            # followed by another slice. Small live events otherwise copy padding.
+            return C.string_at(outgoing, returned.value) if outgoing is not None else b""
         finally:
             if pending:
                 # Closing an event or freeing OVERLAPPED before cancellation finishes
@@ -129,7 +142,27 @@ class WindowsDriverReader:
             raise ValueError('timeout must be between 1 and 60000 ms')
         if self.batch_supported is not False:
             try:
-                raw = self._ioctl(GET_EVENT_BATCH, b'', EVENT_BATCH_BYTES, timeout_ms)
+                if getattr(self, 'native_read', None) is not None:
+                    # One GIL release spans submission/wait/cancellation/cleanup.
+                    # The status/control path remains independent and unchanged.
+                    buffer = C.create_string_buffer(EVENT_BATCH_BYTES)
+                    returned = DWORD(0)
+                    elapsed = C.c_double(0)
+                    error = self.native_read(self.handle, GET_EVENT_BATCH, buffer,
+                                             EVENT_BATCH_BYTES, timeout_ms,
+                                             C.byref(returned), C.byref(elapsed))
+                    self.native_read_calls += 1
+                    self.native_read_seconds = max(self.native_read_seconds, elapsed.value)
+                    if error == 995:
+                        raw = None
+                    elif error:
+                        raise C.WinError(error)
+                    elif returned.value > EVENT_BATCH_BYTES:
+                        raise RuntimeError('Native read exceeded output capacity')
+                    else:
+                        raw = C.string_at(buffer, returned.value)
+                else:
+                    raw = self._ioctl(GET_EVENT_BATCH, b'', EVENT_BATCH_BYTES, timeout_ms)
             except OSError as error:
                 if getattr(error, 'winerror', None) not in (1, 50):
                     raise
@@ -238,3 +271,4 @@ class WindowsDriverReader:
 
     def __exit__(self, *args: Any) -> None:
         self.close()
+

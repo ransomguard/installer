@@ -123,6 +123,12 @@ class Outbox:
         except BaseException:
             self.db.rollback()
             raise
+        if kind != 'kernel_event':
+            try:
+                from .console_stream import audit
+                audit(self.path.parent, kind, payload, event_id, incident_id, occurred_at, self.db.record_active)
+            except Exception:
+                pass # Console disconnects cannot change durable response behavior.
         return event_id
 
     def pending(self, limit: int = 100) -> list[dict[str, Any]]:

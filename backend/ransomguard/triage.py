@@ -19,6 +19,7 @@ from typing import Any, Callable
 import uuid
 
 from .protocol import Event, FILE_FLAG_HIGH_ENTROPY
+from .extension_evidence import extension_change_attempt, rename_completion
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,8 @@ class _Observation:
     kind: int
     high_entropy: bool
     sequence: int
+    extension_change: bool | None = None
+    completion: str = "unknown"
 
 
 @dataclass
@@ -161,7 +164,8 @@ class TriageIntake:
                 del state.paths[path]
 
     def ingest(self, event: Event, *, correlated_create_time: int | None,
-               ignore_file_evidence: bool = False) -> list[TriageRecord]:
+               ignore_file_evidence: bool = False,
+               identity_source: str = "observed_lifecycle_correlation") -> list[TriageRecord]:
         """Return auditable records for one event; never wait for external work.
 
         Call after ProcessRegistry.update(event), including for lifecycle events.
@@ -204,12 +208,16 @@ class TriageIntake:
             return records
 
         supplied_generation = self._generation(correlated_create_time)
+        live_verified = identity_source == 'live_handle_query' and supplied_generation is not None
+        if live_verified and state is not None and state.generation != supplied_generation:
+            self._identity_reset(event.pid, state, 'live_identity_resolved_new_evidence_window', records)
+            state = None
         if state is not None and state.generation is not None and state.generation != supplied_generation:
             reason = "correlation_missing" if supplied_generation is None else "correlation_generation_changed"
             self._identity_reset(event.pid, state, reason, records)
             state = None
         if state is None:
-            state = self._new_state(event.pid, None, records)
+            state = self._new_state(event.pid, supplied_generation if live_verified else None, records)
         self._states.move_to_end(event.pid)
         self._prune(state, now)
 
@@ -221,7 +229,7 @@ class TriageIntake:
             evicted = state.observations.popleft()
             state.observation_evictions += 1
             state.truncated_until = max(state.truncated_until, evicted.at + self.config.window_seconds)
-        state.observations.append(_Observation(now, event.event_type, high_entropy, event.sequence))
+        state.observations.append(_Observation(now, event.event_type, high_entropy, event.sequence, extension_change_attempt(event), rename_completion(event)))
         raw_path = event.fields.get("path", "")
         path = raw_path[:1024] if isinstance(raw_path, str) else ""
         if path:
@@ -248,7 +256,12 @@ class TriageIntake:
         counts = {"write_attempts": sum(item.kind == 4 for item in state.observations),
                   "rename_attempts": sum(item.kind == 5 for item in state.observations),
                   "high_entropy_writes": sum(item.high_entropy for item in state.observations),
-                  "retained_observations": len(state.observations)}
+                  "retained_observations": len(state.observations),
+                  "extension_change_attempts": sum(item.extension_change is True for item in state.observations),
+                  "extension_comparison_unknown": sum(item.kind == 5 and item.extension_change is None for item in state.observations)}
+        for outcome in ("succeeded", "failed", "unknown"):
+            counts["rename_" + outcome] = sum(item.kind == 5 and item.completion == outcome for item in state.observations)
+            counts["extension_change_" + outcome] = sum(item.extension_change is True and item.completion == outcome for item in state.observations)
         record = self._record(
             kind, candidate_id=str(uuid.uuid4()), track="B",
             status="candidate" if identity_available else "deferred_identity",
@@ -256,7 +269,7 @@ class TriageIntake:
             correlated_process_create_time=generation if identity_available else None,
             registry_process_create_time=supplied_generation,
             correlation_is_authorization=False,
-            identity_source="observed_lifecycle_correlation" if identity_available else "unresolved",
+            identity_source=identity_source if identity_available else "unresolved",
             source_sequence=event.sequence, source_filetime=event.filetime,
             window_seconds=self.config.window_seconds, cooldown_seconds=self.config.cooldown_seconds,
             counts=counts, counts_scope="retained_observations_in_window",

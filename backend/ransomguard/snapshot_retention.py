@@ -22,8 +22,8 @@ GiB = 1024 ** 3
 
 @dataclass(frozen=True)
 class RetentionPolicy:
-    max_count: int = 12
-    max_age_seconds: int = 86400
+    max_count: int | None = None
+    max_age_seconds: int | None = None
     min_keep: int = 2
     max_used_bytes: int = 4 * GiB
     creation_reserve_bytes: int = 512 * 1024 ** 2
@@ -36,9 +36,11 @@ class RetentionPolicy:
                   'min_free_bytes': (256 * 1024**2, 1024 * GiB)}
         for key, (lo, hi) in bounds.items():
             value = getattr(self, key)
+            if key in ('max_count', 'max_age_seconds') and value is None:
+                continue
             if type(value) is not int or not lo <= value <= hi:
                 raise ValueError('Invalid retention limit: ' + key)
-        if self.min_keep > self.max_count or self.creation_reserve_bytes >= self.max_used_bytes:
+        if (self.max_count is not None and self.min_keep > self.max_count) or self.creation_reserve_bytes >= self.max_used_bytes:
             raise ValueError('Inconsistent retention limits')
 
 
@@ -87,8 +89,8 @@ def protection_state(config, snapshots):
     with closing(_readonly(config['holds_db'])) as db:
         holds = db.execute('SELECT incident_id,created_at FROM firewall_holds').fetchall()
     with closing(_readonly(config['outbox_db'])) as db:
-        attempts = db.execute("SELECT incident_id,claimed_at_utc FROM live_response_attempts WHERE state != 'RELEASED'").fetchall()
-        jobs = db.execute("SELECT id,created FROM response_jobs WHERE state != 'RELEASED' AND state != 'DONE'").fetchall()
+        attempts = db.execute("SELECT incident_id,claimed_at_utc FROM live_response_attempts WHERE state NOT IN ('RELEASED','EXEMPTED')").fetchall()
+        jobs = db.execute("SELECT id,created FROM response_jobs WHERE state NOT IN ('RELEASED','EXEMPTED') AND state != 'DONE'").fetchall()
         # The pre-claim superset includes every valid selected pre-incident
         # snapshot. Do not scan the large raw event table to rediscover those
         # same IDs; manual engine jobs are covered by durable recovery pins.
@@ -239,7 +241,8 @@ class SnapshotRetention:
 
     def _run(self, volume, *, apply, reserve_for_creation):
         report = {'status': 'blocked', 'policy': asdict(self.policy), 'deleted': [], 'candidates': [],
-                  'creation_allowed': False, 'storage_scope': 'shared_volume_diff_area', 'quota_resized': False}
+                  'creation_allowed': False, 'storage_scope': 'shared_volume_diff_area', 'quota_resized': False,
+                  'retention_mode': 'capacity' if self.policy.max_count is None and self.policy.max_age_seconds is None else 'legacy_limits'}
         try:
             owned = self._owned(volume)
             initial = {s.snapshot_id: s for s in self.inventory(volume)}
@@ -265,6 +268,10 @@ class SnapshotRetention:
                     if db.execute("SELECT 1 FROM sqlite_master WHERE name='snapshot_recovery_pins'").fetchone():
                         protected.update(_snapshot_id(r[0]) for r in db.execute(
                             "SELECT snapshot_id FROM snapshot_recovery_pins WHERE state!='released'"))
+                from .snapshot_management import user_pins
+                manual_pins=user_pins(self.state_db)
+                protected.update(manual_pins)
+                if manual_pins:reasons.append('user_protected_snapshots')
                 protected.update(s.snapshot_id for s in own[-self.policy.min_keep:])
                 space = self._space(volume)
                 reserve = self.policy.creation_reserve_bytes if reserve_for_creation else 0
@@ -274,10 +281,12 @@ class SnapshotRetention:
                     max_used = min(max_used, space['os_max_bytes'])
                 pressure = (max(space['used_bytes'], space['allocated_bytes']) + reserve > max_used or
                             space['free_bytes'] < self.policy.min_free_bytes + reserve)
-                excess = len(own) + int(reserve_for_creation) > self.policy.max_count
+                excess = (self.policy.max_count is not None and
+                          len(own) + int(reserve_for_creation) > self.policy.max_count)
                 available = [s for s in own if s.snapshot_id not in protected]
                 candidates = [s for s in available if pressure or excess or
-                              (now - s.created_at).total_seconds() > self.policy.max_age_seconds]
+                              (self.policy.max_age_seconds is not None and
+                               (now - s.created_at).total_seconds() > self.policy.max_age_seconds)]
                 report.update(owned_count=len(own), foreign_count=len(live)-len(own),
                     protected_ids=sorted(protected), protection_reasons=reasons, storage=space,
                     pressure=pressure, count_exceeded=excess,
@@ -338,7 +347,7 @@ def pin_recovery(plan):
         return None
     # Missing/broken required policy is a reason to stop, never to write unpinned.
     load_config(state)
-    with closing(sqlite3.connect(state.absolute().as_uri()+'?mode=rw',uri=True,timeout=3)) as db:
+    with closing(sqlite3.connect(state.absolute().as_uri()+'?mode=rw',uri=True,timeout=15)) as db:
         db.execute('PRAGMA synchronous=FULL')
         db.execute('''CREATE TABLE IF NOT EXISTS snapshot_recovery_pins (
             job_id TEXT PRIMARY KEY,snapshot_id TEXT NOT NULL,volume_id TEXT NOT NULL,
@@ -352,8 +361,13 @@ def pin_recovery(plan):
 def finish_recovery_pin(state, job_id, *, verified):
     if state is None:
         return
-    with closing(sqlite3.connect(state,timeout=3)) as db:
+    # Match the snapshot coordinator's bounded busy wait. A short-lived UI
+    # reader in DELETE journal mode may delay COMMIT after files are restored.
+    # Keep the active pin and propagate failure if the wait expires.
+    with closing(sqlite3.connect(Path(state).absolute().as_uri()+'?mode=rw',uri=True,timeout=15)) as db:
         db.execute('PRAGMA synchronous=FULL')
-        db.execute('UPDATE snapshot_recovery_pins SET state=? WHERE job_id=?',
+        cursor = db.execute('UPDATE snapshot_recovery_pins SET state=? WHERE job_id=?',
                    ('released' if verified else 'review',job_id))
+        if cursor.rowcount != 1:
+            raise RuntimeError('Recovery pin is missing; completion requires review')
         db.commit()

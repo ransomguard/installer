@@ -2,7 +2,7 @@
 import argparse, ast, ctypes, hashlib, json, os, re, shutil, subprocess, sys, time, uuid
 from pathlib import Path
 
-VERSION='0.6.0-preview.3'
+VERSION='0.6.0-preview.15'
 APP=Path(os.environ.get('ProgramFiles',r'C:\Program Files'))/'RansomGuard'
 DATA=Path(os.environ.get('ProgramData',r'C:\ProgramData'))/'RansomGuard'
 TASKS=('RansomGuard-InteractiveStartup','RansomGuard-PassiveSupervisor','RansomGuard-HourlySnapshot','RansomGuard-SnapshotRetention')
@@ -78,7 +78,9 @@ def verify_payload(payload):
     return manifest
 
 def register_tasks(base, paths, backup):
-    data=dict(base=str(base),python=paths['python'],engine=str(APP/VERSION/'setup/setup_engine.py'),backup=str(backup))
+    from ransomguard.snapshot_settings import interval_minutes
+    from ransomguard.snapshots import default_state_db
+    data=dict(base=str(base),python=paths['python'],engine=str(APP/VERSION/'setup/setup_engine.py'),backup=str(backup),snapshot_minutes=interval_minutes(default_state_db()))
     ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
 $old=Get-ScheduledTask -TaskName 'RansomGuard-InteractiveStartup' -ErrorAction SilentlyContinue
 $sid=if($old){$old.Principal.UserId}else{[Security.Principal.WindowsIdentity]::GetCurrent().User.Value}
@@ -93,7 +95,7 @@ foreach($name in @('RansomGuard-InteractiveStartup','RansomGuard-PassiveSupervis
 $definitions=@(
  @{Name='RansomGuard-InteractiveStartup';Command='start';Trigger=(New-ScheduledTaskTrigger -AtLogOn -User $sid);Settings=$settingsStart},
  @{Name='RansomGuard-PassiveSupervisor';Command='watch';Trigger=(New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1));Settings=$settings},
- @{Name='RansomGuard-HourlySnapshot';Command='snapshot';Trigger=(New-ScheduledTaskTrigger -Once -At (Get-Date).AddHours(1) -RepetitionInterval (New-TimeSpan -Hours 1));Settings=$settings},
+ @{Name='RansomGuard-HourlySnapshot';Command='snapshot';Trigger=(New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes($i.snapshot_minutes) -RepetitionInterval (New-TimeSpan -Minutes $i.snapshot_minutes));Settings=$settings},
  @{Name='RansomGuard-SnapshotRetention';Command='retention';Trigger=(New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Minutes 5));Settings=$settings})
 foreach($d in $definitions){
  $arg='"'+$i.engine+'" '+$d.Command+' --runtime "'+$i.base+'"'
@@ -101,6 +103,24 @@ foreach($d in $definitions){
  Register-ScheduledTask -TaskName $d.Name -Action $a -Trigger $d.Trigger -Principal $principal -Settings $d.Settings -Force|Out-Null
 }
 ''',data)
+
+def ensure_jev_transport(base, installroot):
+    """An empty key must not make the dashboard's future key setup unusable."""
+    transport=load(base/'jev-transport.json')
+    if transport is None:
+        transport={'endpoint':'https://api.typesafe.ai','bridge':str(installroot/'bridge/RansomGuard.JevBridge.exe')}
+        save(base/'jev-transport.json',transport)
+    return transport
+
+
+def prepare_network(channel, old, request, bridge, backup, runner):
+    """Installation never changes firewall profiles, exceptions, or hosts mappings.
+
+    Even legacy jev_only_network requests cannot re-enable install-time isolation.
+    Incident containment belongs to the response coordinator's durable holds.
+    """
+    return {'preserved_existing':True,'configured':False,'mode':'incident_response_only'}
+
 
 def install(payload, request):
     payload=Path(payload).resolve();manifest=verify_payload(payload);info=inspect(payload)
@@ -121,8 +141,9 @@ def install(payload, request):
         if any(isinstance(x,str) and prefix in x.lower() for x in pending):
             raise RuntimeError('이전 제거의 파일 정리가 예약돼 있습니다. Windows 재부팅 후 다시 설치하세요.')
     from ransomguard.protection_setup import configure_scope,refresh,validate_folder
-    folder,volume=validate_folder(request['protected_root'],forbidden=(str(base),str(APP)))
-    if request.get('acknowledge_folder_revert') is not True:raise ValueError('Approve the selected-folder restore scope')
+    # Recovery scope is selected later in dashboard Settings; upgrades preserve it.
+    existing_scope=load(base/'protection.json',{})
+    folder=existing_scope.get('protected_root','');volume=existing_scope.get('volume_root','')
     installroot=APP/VERSION
     if installroot.exists():
         oldmanifest=load(installroot/'payload-manifest.json')
@@ -156,7 +177,7 @@ def install(payload, request):
     # Executable task files and state must not be writable by unelevated users.
     ps("$i=[Console]::In.ReadToEnd()|ConvertFrom-Json; & icacls.exe $i.base /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null;if($LASTEXITCODE){throw 'Runtime ACL failed'}",{'base':str(base)})
     paths=dict(schema=1,evidence_mode='test',recovery_root=str(installroot/'backend'),python=str(installroot/'python/python.exe'),
-        ui=old['ui'] if old else str(installroot/'ui/ransom0-ui.exe'),
+        ui=str(installroot/'ui/ransom0-ui.exe'),
         firewall=old['firewall'] if old else str(installroot/'firewall/r0-fw-daemon.exe'))
     journal={'version':VERSION,'runtime':str(base),'paths':paths,'old_paths':old,'backup':str(backup),
              'created_services':list((receipt or {}).get('created_services',[])),
@@ -206,6 +227,14 @@ def install(payload, request):
         else:
             if pid:raise RuntimeError('Collector did not stop cooperatively; no force termination performed')
         journal['stopped']=load(base/'observer-ready.json');save(DATA/'installation-receipt.json',journal)
+        # Use this release's UI, not the previous installation's executable.
+        # The userData database remains at the existing app identity/path.
+        ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
+$items=@(Get-Process -Name 'ransom0-ui' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $i.path })
+foreach($p in $items){if($p.MainWindowHandle -ne 0){$p.CloseMainWindow()|Out-Null}}
+Start-Sleep -Seconds 2
+foreach($p in $items){$p.Refresh();if(!$p.HasExited -and $p.Path -eq $i.path){$p.Kill()}}
+''',{'path':old['ui']})
     elif manifest['channel']=='internal-preview':
         from release_policy import driver_store
         for name in ('Anti_Ransom_Driver','Anti_Ransom_FsFilter'):
@@ -245,13 +274,19 @@ def install(payload, request):
     save(base/'installation.json',paths)
     for name in ('live-response-profile.json','protection.json','protected-manifest.json'):
         if (base/name).exists():shutil.copy2(base/name,backup/name)
-    configure_scope(base,folder,acknowledge_folder_revert=True,snapshot_budget_gib=request.get('snapshot_budget_gib',8))
-    trace('선택 폴더의 복구 시점과 파일 목록을 확인합니다.')
-    preparation=refresh(base,create_snapshot=True,initial=True)
-    config=load(base/'response-config.json') or load(installroot/'backend/config/example.json');config['recovery'].update(protected_root=folder,volume_root=volume)
+    from ransomguard.protection_setup import ensure_response_database
+    ensure_response_database(base)
+    preparation=load(base/'protection-status.json',{'ready':False,'reason':'scope_not_configured','detail':'대시보드 설정에서 보호·복구 폴더를 선택해 주세요.'})
+    if not existing_scope:
+        save(base/'protection-status.json',preparation)
+    config=load(base/'response-config.json') or load(installroot/'backend/config/example.json')
+    if existing_scope:config['recovery'].update(protected_root=folder,volume_root=volume)
     save(base/'response-config.json',config)
+    save(base/'scope-settings-enabled.json',{'schema_version':1})
+    save(base/'scope-authorization.json',dict(schema_version=1,authorized_isolated_lab=manifest['channel']=='isolated-lab',
+        authorized_internal_test=manifest['channel']!='isolated-lab',acknowledged_pc_wide_containment=request.get('acknowledge_pc_wide_containment') is True,tracks=['A','B']))
     from ransomguard.observer_filter import _query_dos_device
-    transport=load(base/'jev-transport.json')
+    transport=ensure_jev_transport(base,installroot)
     if request.get('api_key'):
         bridge=Path(transport['bridge']) if transport else installroot/'bridge/RansomGuard.JevBridge.exe'
         p=subprocess.run([str(bridge),'--import-key'],input=request['api_key'],text=True,capture_output=True,timeout=20)
@@ -262,18 +297,10 @@ def install(payload, request):
         check=subprocess.run([transport['bridge'],'--check-key'],capture_output=True,timeout=20)
         key_ready=check.returncode==0
         if not key_ready:trace('JEV 키를 이 Windows에서 읽을 수 없어 자동 대응을 활성화하지 않습니다.')
-    if manifest['channel']=='isolated-lab' and (not old or request.get('jev_only_network') is True):
-        if request.get('jev_only_network') is not True:
-            raise ValueError('Fresh VM setup requires explicit JEV-only network authorization')
-        existing_policy=ps("[bool](Get-NetFirewallRule -Name 'RansomGuard-JEV-Only-HTTPS' -ErrorAction SilentlyContinue)").lower()=='true'
-        if existing_policy:
-            journal['network_setup']={'preserved_existing':True,'configured':False}
-        else:
-            from jev_network import configure
-            journal['network_setup']=configure(installroot/'bridge/RansomGuard.JevBridge.exe',backup,ps,resolve_endpoint=key_ready)
-    # Existing machine firewall and JEV host mapping are kept byte-for-byte.
-    # A fresh lab installs only the explicitly selected JEV-only policy.
-    network_ready=key_ready and (manifest['channel']!='isolated-lab' or ps("[bool](Get-NetFirewallRule -Name 'RansomGuard-JEV-Only-HTTPS' -ErrorAction SilentlyContinue)").lower()=='true')
+    journal['network_setup']=prepare_network(manifest['channel'],old,request,installroot/'bridge/RansomGuard.JevBridge.exe',backup,ps)
+    # API key availability is not a claim of successful external authentication.
+    # Normal connectivity uses the existing OS policy; isolation is incident-driven.
+    network_ready=key_ready
     if preparation['ready'] and network_ready:
         save(base/'live-response-profile.json',dict(schema_version=1,authorized_isolated_lab=manifest['channel']=='isolated-lab',
             authorized_internal_test=manifest['channel']!='isolated-lab',acknowledged_pc_wide_containment=request.get('acknowledge_pc_wide_containment') is True,tracks=['A','B'],
@@ -282,14 +309,21 @@ def install(payload, request):
         # The previous scope is backed up above. It must never silently stay
         # authorized after the operator selected a different, unready folder.
         (base/'live-response-profile.json').unlink(missing_ok=True)
-        trace('복구 시점 또는 JEV 전용 통신 준비가 없어 관찰 모드로 설치됩니다.')
+        trace('복구 기준 또는 JEV 키가 준비되지 않아 관찰 모드로 설치됩니다.')
     journal['task_registration_started']=True;save(DATA/'installation-receipt.json',journal)
     register_tasks(base,paths,backup)
     # Shortcut opens an elevated local manager, not an unprivileged detached UI.
     ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
 $w=New-Object -ComObject WScript.Shell
 $desktop=[Environment]::GetFolderPath('CommonDesktopDirectory')
-$s=$w.CreateShortcut((Join-Path $desktop 'RansomGuard.lnk'));$s.TargetPath=$i.exe;$s.Arguments='--manage';$s.WorkingDirectory=Split-Path $i.exe;$s.Save()
+$s=$w.CreateShortcut((Join-Path $desktop 'Ransom0.lnk'));$s.TargetPath=$i.exe;$s.Arguments='--manage';$s.WorkingDirectory=Split-Path $i.exe;$s.IconLocation=$i.exe+',0';$s.Save()
+foreach($name in @('RansomGuard.lnk','랜섬제로.lnk')) {
+ $old=Join-Path $desktop $name
+ if(Test-Path -LiteralPath $old) {
+  $link=$w.CreateShortcut($old)
+  if($link.TargetPath -like ((Join-Path $env:ProgramFiles 'RansomGuard')+'\*\RansomGuard.exe') -and $link.Arguments -eq '--manage') { Remove-Item -LiteralPath $old }
+ }
+}
 ''',{'exe':str(installroot/'RansomGuard.exe')})
     journal.update(state='installed',recovery=preparation,network_ready=network_ready);save(DATA/'installation-receipt.json',journal)
     from lifecycle import register
@@ -406,13 +440,15 @@ def main():
         runpy.run_path(str(base/('Start-RansomGuard.py' if a.command=='start' else 'Watch-RansomGuard.py')),run_name='__main__');return
     elif a.command=='snapshot':
         from ransomguard.protection_setup import refresh
-        result=refresh(base,create_snapshot=True)
+        result=refresh(base,create_snapshot=True) if (base/'protection.json').exists() else {'ready':False,'reason':'scope_not_configured'}
     else:
         from ransomguard.snapshots import default_state_db
         from ransomguard.snapshot_retention import SnapshotRetention,load_config
         from ransomguard.recovery import volume_id_for_root
         state=default_state_db();cfg=load(base/'protection.json')
-        result=SnapshotRetention(state,load_config(state)).run(volume_id_for_root(cfg['volume_root']),apply=True)
+        from ransomguard.scope_settings import scope_lock
+        with scope_lock(base):
+            result=SnapshotRetention(state,load_config(state)).run(volume_id_for_root(cfg['volume_root']),apply=True) if cfg else {'skipped':'scope_not_configured'}
     print(json.dumps(result,ensure_ascii=False,default=str))
 
 if __name__=='__main__':

@@ -50,7 +50,7 @@ def register(engine, receipt):
     engine.ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
 $key='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\RansomGuard.Internal'
 New-Item -Path $key -Force|Out-Null
-foreach($pair in @(@('DisplayName','RansomGuard 내부 시험판'),@('Publisher','RansomGuard University Project'),@('DisplayVersion',$i.version),@('InstallLocation',$i.root),@('DisplayIcon',$i.exe),@('UninstallString',('"'+$i.exe+'" --uninstall')))){
+foreach($pair in @(@('DisplayName','Ransom0 내부 시험판'),@('Publisher','RansomGuard University Project'),@('DisplayVersion',$i.version),@('InstallLocation',$i.root),@('DisplayIcon',$i.exe),@('UninstallString',('"'+$i.exe+'" --uninstall')))){
  New-ItemProperty -Path $key -Name $pair[0] -Value $pair[1] -PropertyType String -Force|Out-Null
 }
 New-ItemProperty -Path $key -Name NoModify -Value 1 -PropertyType DWord -Force|Out-Null
@@ -140,8 +140,10 @@ foreach($path in $i.paths){
         receipt['reboot_required']=receipt.get('reboot_required',False) or value['reboot_required']
     engine.ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
 foreach($name in $i.tasks){if(Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue){Unregister-ScheduledTask -TaskName $name -Confirm:$false}}
-$link=Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'RansomGuard.lnk'
+foreach($label in @('Ransom0.lnk','RansomGuard.lnk')){
+$link=Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) $label
 if(Test-Path -LiteralPath $link){$w=New-Object -ComObject WScript.Shell;if($w.CreateShortcut($link).TargetPath -eq $i.exe){Remove-Item -LiteralPath $link}}
+}
 $key='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\RansomGuard.Internal'
 if(Test-Path $key){if((Get-ItemProperty $key).InstallLocation -eq $i.root){Remove-Item -LiteralPath $key}}
 ''',{'tasks':list(engine.TASKS),'root':str(root),'exe':str(root/'RansomGuard.exe')})

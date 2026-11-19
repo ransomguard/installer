@@ -41,7 +41,7 @@ GET_STATUS = ctl_code(0x804, 1)
 GET_EVENT = ctl_code(0x805, 1)
 GET_EVENT_BATCH = ctl_code(0x809, 1)
 GET_QUEUE_STATS = ctl_code(0x80A, 1)
-EVENT_BATCH_LIMIT = 32
+EVENT_BATCH_LIMIT = 128
 EVENT_BATCH_BYTES = 16 + EVENT_BATCH_LIMIT * MAX_EVENT_SIZE
 
 
@@ -125,7 +125,7 @@ def decode_event(raw: bytes) -> Event:
                   "high_entropy_observed": bool(flags & FILE_FLAG_HIGH_ENTROPY),
                   "fast_io_attempt": bool(flags & FILE_FLAG_FAST_IO),
                   "extension_available": not bool(flags & FILE_FLAG_EXT_UNAVAILABLE),
-                  "operation_result": "unknown_pre_operation"}
+                  "operation_result": ("succeeded_at_filter_completion" if flags & 256 else "failed_at_filter_completion") if kind == 5 and flags & 128 else "unknown_pre_operation"}
     return Event(kind, EVENT_NAMES[kind], sequence, timestamp, pid, fields)
 
 

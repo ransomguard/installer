@@ -81,7 +81,15 @@ def ensure_response_database(base):
         outbox.db.commit()
 
 
-def refresh(runtime, *, create_snapshot=False, initial=False):
+def refresh(runtime, *, create_snapshot=False, initial=False, _scope_locked=False):
+    if _scope_locked:
+        return _refresh(runtime, create_snapshot=create_snapshot, initial=initial)
+    from .scope_settings import scope_lock
+    with scope_lock(runtime):
+        return _refresh(runtime, create_snapshot=create_snapshot, initial=initial)
+
+
+def _refresh(runtime, *, create_snapshot=False, initial=False):
     base=Path(runtime);settings=json.loads((base/'protection.json').read_text(encoding='utf-8-sig'))
     folder,volume=validate_folder(settings['protected_root'],forbidden=(str(base),))
     if settings.get('acknowledged_folder_revert') is not True:
@@ -111,6 +119,7 @@ def refresh(runtime, *, create_snapshot=False, initial=False):
             manifests=[str(placeholder)]
         policy=old.get('policy',vars(RetentionPolicy()))
         policy['max_used_bytes']=settings['snapshot_budget_gib']*1024**3
+        policy.update(max_count=None,max_age_seconds=None)
         RetentionPolicy(**policy)
         save_json(sidecar,dict(schema_version=1,enabled=True,policy=policy,
             outbox_db=str(base/'observe.sqlite3'),holds_db=str(base/'holds.sqlite3'),manifest_paths=manifests))

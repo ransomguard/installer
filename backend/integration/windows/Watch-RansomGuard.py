@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from installation_paths import load_paths
 BASE, PATHS = load_paths(__file__)
 ROOT = PATHS['recovery_root']

@@ -1,5 +1,5 @@
 import struct,time,unittest
-from ransomguard.protocol import MAGIC,VERSION,GET_EVENT,GET_EVENT_BATCH,EVENT_BATCH_BYTES,split_event_batch,ProtocolError
+from ransomguard.protocol import MAGIC,VERSION,GET_EVENT,GET_EVENT_BATCH,EVENT_BATCH_BYTES,EVENT_BATCH_LIMIT,split_event_batch,ProtocolError
 from ransomguard.windows_reader import WindowsDriverReader
 from ransomguard.buffered_reader import BufferedReader
 
@@ -12,9 +12,13 @@ class BatchTests(unittest.TestCase):
     def test_variable_records_remain_complete_ordered_and_without_padding(self):
         rows=[record(1,1616),record(2,2232),record(3,1616)]
         self.assertEqual(split_event_batch(packet(rows)),rows)
+    def test_legacy_and_larger_batches_preserve_every_record(self):
+        for size in (32,128):
+            rows=[record(n,2232) for n in range(size)]
+            self.assertEqual(split_event_batch(packet(rows)),rows)
     def test_invalid_packets_fail_before_returning_partial_records(self):
         good=packet([record(1),record(2)])
-        bad=[b'',good[:-1],good+b'x',packet([]),packet([record(n) for n in range(33)]),
+        bad=[b'',good[:-1],good+b'x',packet([]),packet([record(n) for n in range(EVENT_BATCH_LIMIT+1)]),
              struct.pack('<IIII',MAGIC,VERSION,3,len(good))+good[16:],
              packet([record(1)])[:-32]+struct.pack('<IIIIQQ',MAGIC,VERSION,4,4000,0,1)]
         for raw in bad:

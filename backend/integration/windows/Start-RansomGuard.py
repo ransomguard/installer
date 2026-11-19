@@ -3,6 +3,9 @@ import ctypes as C
 import json,os,subprocess,sys,time
 from pathlib import Path
 
+# The bundled Python uses an isolated ._pth file: the script directory is
+# deliberately absent from sys.path even when this file is executed directly.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from installation_paths import load_paths
 BASE, PATHS = load_paths(__file__)
 ROOT, PY, UI, DAEMON = (PATHS[k] for k in ('recovery_root', 'python', 'ui', 'firewall'))
@@ -114,7 +117,7 @@ def main():
     if not existing:
         ready_path.unlink(missing_ok=True)
         ready_path.with_suffix('.stop').unlink(missing_ok=True)
-        observer=spawn([str(PY),'-m','ransomguard','observe','--resident','--ui','--ui-durable','--quiet-events','--prefetch-events','16384','--ready-file',str(ready_path),'--status-every','50','--db',outbox]+live_options,'observer',env)
+        observer=spawn([str(PY),'-m','ransomguard','observe','--resident','--ui','--ui-durable','--quiet-events','--prefetch-events','131072','--ready-file',str(ready_path),'--status-every','512','--db',outbox]+live_options,'observer',env)
         deadline=time.monotonic()+45
         while True:
             try:ready=json.loads(ready_path.read_text())

@@ -205,11 +205,24 @@ class _WindowsPipeExchange:
 
     def __call__(self, request: bytes, timeout_ms: int) -> bytes:
         deadline = time.monotonic() + timeout_ms / 1000.0
-        if not self.k.WaitNamedPipeW(self.path, self._remaining_ms(deadline)):
-            raise OSError(C.get_last_error(), "Firewall daemon pipe unavailable")
-        handle = self.k.CreateFileW(self.path, 0xC0000000, 0, None, 3, 0x40000000, None)
-        if handle == C.c_void_p(-1).value:
-            raise OSError(C.get_last_error(), "Firewall daemon connection failed")
+        # The single-instance daemon closes/recreates its pipe between requests.
+        # WaitNamedPipe returns FILE_NOT_FOUND immediately during that gap; it
+        # does not wait for the supplied timeout. Retry connection only, before
+        # sending bytes. Never replay an ON/OFF whose acknowledgement was lost.
+        while True:
+            if not self.k.WaitNamedPipeW(self.path, min(50, self._remaining_ms(deadline))):
+                code = C.get_last_error()
+                if code not in (2, 121, 231):
+                    raise OSError(code, "Firewall daemon pipe unavailable")
+            else:
+                handle = self.k.CreateFileW(self.path, 0xC0000000, 0, None, 3, 0x40000000, None)
+                if handle != C.c_void_p(-1).value:
+                    break
+                code = C.get_last_error()
+                if code not in (2, 231):
+                    raise OSError(code, "Firewall daemon connection failed")
+            self._remaining_ms(deadline)
+            time.sleep(.005)
         try:
             written = self._transfer(handle, request, 0, deadline)
             if written != len(request):

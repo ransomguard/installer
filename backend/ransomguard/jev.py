@@ -152,8 +152,10 @@ class JevClient:
             if self.config.base_url.rstrip("/") != "https://api.typesafe.ai":
                 raise JevConfigurationError("The JEV bridge only supports the official fixed API endpoint")
             from .jev_bridge import evaluate_bridge
-            return evaluate_bridge(bridge, state_json=encoded.decode("utf8"),
+            verdict = evaluate_bridge(bridge, state_json=encoded.decode("utf8"),
                                    model=self.config.model, timeout=float(self.config.timeout_seconds))
+            verdict["request_state"] = json.loads(encoded) if len(encoded) <= 12000 else {"omitted": "Request exceeds UI display limit", "bytes": len(encoded)}
+            return verdict
         key = os.environ.get(self.config.api_key_env, "").strip()
         if not key or not key.isascii() or not key.isprintable() or any(c.isspace() for c in key):
             raise JevConfigurationError("JEV API credentials are missing or invalid")
@@ -188,4 +190,6 @@ class JevClient:
             # Do not expose SDK exception bodies, headers, credential strings, or
             # telemetry to logs through exception text/chaining.
             raise JevTransportError("JEV request failed; no verdict is available") from None
-        return parse_verdict(response)
+        verdict = parse_verdict(response)
+        verdict["request_state"] = json.loads(encoded) if len(encoded) <= 12000 else {"omitted": "Request exceeds UI display limit", "bytes": len(encoded)}
+        return verdict

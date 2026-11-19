@@ -52,7 +52,7 @@ class TriageTests(unittest.TestCase):
         self.assertEqual(self.triage.ingest(event(5, 3, entropy=True), correlated_create_time=999), [])
         result = self.write(4)[0].payload
         self.assertEqual(result["counts"], {"write_attempts": 2, "rename_attempts": 1,
-                                           "high_entropy_writes": 1, "retained_observations": 3})
+                                           "high_entropy_writes": 1, "retained_observations": 3, "extension_change_attempts": 1, "extension_comparison_unknown": 0, "rename_succeeded": 0, "rename_failed": 0, "rename_unknown": 1, "extension_change_succeeded": 0, "extension_change_failed": 0, "extension_change_unknown": 1})
 
     def test_cooldown_throttles_candidates_but_keeps_evidence(self):
         self.create()
@@ -188,3 +188,4 @@ class TriageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -398,18 +398,19 @@ class RecoveryEngine:
                           manifest=manifest, incident_at=incident_at)
 
     def execute(self, plan: RecoveryPlan, *, allow_live: bool = False,
-                containment_confirmed: bool = False, allow_local_test: bool = False) -> dict[str, Any]:
+                containment_confirmed: bool = False, allow_local_test: bool = False,
+                manual_restore_confirmed: bool = False) -> dict[str, Any]:
         from .snapshot_guard import snapshot_guard
         with snapshot_guard():
             from .snapshot_retention import pin_recovery, finish_recovery_pin
             pin = None
-            if isinstance(plan, RecoveryPlan) and self.backend is None and allow_live is True and containment_confirmed is True:
+            if isinstance(plan, RecoveryPlan) and self.backend is None and allow_live is True and (containment_confirmed is True or manual_restore_confirmed is True):
                 _require_windows()
                 pin = pin_recovery(plan)
             try:
                 result = self._execute(plan, allow_live=allow_live,
                                        containment_confirmed=containment_confirmed,
-                                       allow_local_test=allow_local_test)
+                                       allow_local_test=allow_local_test, manual_restore_confirmed=manual_restore_confirmed)
             except BaseException:
                 finish_recovery_pin(pin, plan.job_id if isinstance(plan, RecoveryPlan) else '', verified=False)
                 raise
@@ -417,7 +418,8 @@ class RecoveryEngine:
             return result
 
     def _execute(self, plan: RecoveryPlan, *, allow_live: bool = False,
-                 containment_confirmed: bool = False, allow_local_test: bool = False) -> dict[str, Any]:
+                 containment_confirmed: bool = False, allow_local_test: bool = False,
+                manual_restore_confirmed: bool = False) -> dict[str, Any]:
         """Execute an explicitly authorized plan; never release quarantine.
 
         A ``verified`` result means every listed file matches the selected
@@ -431,7 +433,7 @@ class RecoveryEngine:
                                manifest=plan.entries, incident_at=plan.incident_at)
         if validated.protected_relative != plan.protected_relative:
             raise RecoveryValidationError("Recovery plan path metadata is inconsistent")
-        if containment_confirmed is not True:
+        if containment_confirmed is not True and manual_restore_confirmed is not True:
             raise RecoveryValidationError("Caller must explicitly confirm containment before any recovery writes")
         if self.backend is None:
             if allow_live is not True:
