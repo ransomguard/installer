@@ -1,10 +1,11 @@
 """Candidate bundle. --signed-drivers requires actual Microsoft-signed files."""
 from pathlib import Path
-import argparse,hashlib,json,shutil,subprocess,sys,zipfile,uuid
+import argparse,ast,hashlib,json,shutil,subprocess,sys,zipfile,uuid
 B=Path(__file__).resolve().parent;ROOT=B.parents[1];P=B/'payload'
 parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--signed-drivers',type=Path);group.add_argument('--test-pc',action='store_true');parser.add_argument('--output',type=Path);parser.add_argument('--ui-asar',type=Path);args=parser.parse_args()
 channel='internal-preview' if args.signed_drivers else 'internal-test' if args.test_pc else 'isolated-lab'
-version='0.6.0-preview.19'
+# Use the install engine as the single release version source.
+version=next(ast.literal_eval(n.value) for n in ast.parse((B/'src/setup_engine.py').read_text(encoding='utf-8-sig')).body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='VERSION' for t in n.targets))
 P=B/('staging-'+version+'-'+uuid.uuid4().hex[:8])
 def digest(path):
     with Path(path).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()

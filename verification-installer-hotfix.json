@@ -1,0 +1,9 @@
+{
+  "version": "0.6.0-preview.19",
+  "embedded_files_verified": 378,
+  "only_payload_code_change": "setup/setup_engine.py VERSION",
+  "exe_sha256": "fd313e0d33159c8095aacb4abd3addb97ddddc03da086e09c054b9c8ca940507",
+  "zip_sha256": "c8d34eaad85d1763dbc5136a6a82a05c7e73db2cd052b95e5d4bc1b2b2f5ac40",
+  "vm_install_reboot": "not_verified",
+  "installer_tests": 20
+}

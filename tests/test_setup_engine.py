@@ -4,6 +4,17 @@ from pathlib import Path
 P=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('installer',P/'src/setup_engine.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class InstallerTests(unittest.TestCase):
+    def test_build_version_is_derived_from_engine(self):
+        import ast
+        tree=ast.parse((P/('build.py' if (P/'build.py').exists() else 'build-reference.py')).read_text(encoding='utf-8-sig'))
+        node=next(n for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='version' for t in n.targets))
+        namespace={'ast':ast,'B':P}
+        actual=eval(compile(ast.Expression(node.value),'<build-version>','eval'),namespace)
+        self.assertEqual(actual,m.VERSION)
+        changed=P/'src/setup_engine.py'
+        original=changed.read_text(encoding='utf-8-sig')
+        with patch.object(Path,'read_text',return_value=original.replace(m.VERSION,'9.9.9-test')):
+            self.assertEqual(eval(compile(ast.Expression(node.value),'<build-version>','eval'),namespace),'9.9.9-test')
     def test_background_tasks_use_windowless_python(self):
         with tempfile.TemporaryDirectory() as t:
             base=Path(t);python=base/'python.exe';windowless=base/'pythonw.exe'
