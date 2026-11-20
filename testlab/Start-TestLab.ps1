@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference='Stop'
+$ErrorActionPreference='Stop'
 if (!( [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host 'Start-TestLab.cmd를 우클릭하여 관리자 권한으로 실행하세요.' -ForegroundColor Yellow
     exit 1
@@ -20,6 +20,7 @@ while ($true) {
     Write-Host '9. Track B 실제 JEV 판정·대응 (API 키 필요 / 시험 수치 전송)'
     Write-Host '10. 기본 시험 자동 실행 (1 → 2 → 4 → 5번)'
     Write-Host '11. 커널 Rule1001 생성 차단 (무해한 실행 파일 복사본 / JEV 미사용)'
+    Write-Host '12. Track A 격리 중 화이트리스트 통신 검증 (8번 자동 실행 / 인터넷 필요)'
     Write-Host '0. 종료'
     $choice=Read-Host '실행할 번호 입력'
     if ($choice -eq '0') { break }
@@ -30,13 +31,19 @@ while ($true) {
         '3' { @('burst','--count','120000') }; '4' { @('mixed') }
         '5' { @('process') }; '6' { @('prepare') }; '7' { @('recovery') }
         '8' { @('track-a') }; '9' { @('track-b','--allow-jev') }; '10' { @('suite') }; '11' { @('kernel-block') }
+        '12' { @('network-whitelist') }
         default { @() }
     })
     if (!$testArgs.Count) { continue }
     Write-Host '승인된 시험 VM에서만 실행하세요. 기존 카운터와 실패 기록은 보존됩니다.' -ForegroundColor Yellow
-    if ($choice -in @('7','8','9')) {
+    if ($choice -in @('7','8','9','12')) {
         Write-Host '6번으로 준비한 C:\ProgramData\Ransom0TestLab\Protected 폴더를 Ransom0의 복구 범위로 먼저 설정하세요.'
-        Write-Host '8·9번은 VM 전체 네트워크를 격리할 수 있습니다. 검토가 필요한 격리는 도구가 임의로 해제하지 않습니다.'
+        Write-Host '8·9·12번은 VM 전체 네트워크를 격리할 수 있습니다. 검토가 필요한 격리는 도구가 임의로 해제하지 않습니다.'
+    }
+    if ($choice -eq '12') {
+        Write-Host 'example.com:443을 네트워크 화이트리스트에 먼저 등록하세요. www.naver.com은 등록하지 마세요.'
+        Write-Host '8번을 함께 자동 실행합니다. IPv4 HTTPS 새 연결로 격리 전·중·후를 확인합니다.'
+        Write-Host '격리 순간을 놓치거나 인증서·접속 확인에 실패하면 검증 불충분으로 기록합니다.'
     }
     if ((Read-Host '실행하려면 영문 대문자로 TEST 입력') -cne 'TEST') { continue }
     if ($choice -eq '10') {
@@ -44,6 +51,9 @@ while ($true) {
             & $python "$PSScriptRoot\testlab.py" $profile --confirm-test
             if ($LASTEXITCODE -ne 0) { Write-Host '자동 시험을 중단했습니다. 실패 또는 판단 불가 보고서를 먼저 확인하세요.' -ForegroundColor Yellow; break }
         }
+    } elseif ($choice -eq '12') {
+        & $python -X utf8 "$PSScriptRoot\network-whitelist-check.py"
+        Write-Host '12번 통신 결과: C:\ProgramData\Ransom0TestLab\NetworkChecks (실행별 network-report.json / track-a-console.txt)'
     } else { & $python "$PSScriptRoot\testlab.py" @testArgs --confirm-test }
     Write-Host '결과 저장 위치: C:\ProgramData\Ransom0TestLab\Runs (실행별 report.txt / report.json)'
 }

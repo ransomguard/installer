@@ -1,0 +1,16 @@
+{
+  "version": "0.6.0-preview.21",
+  "embedded_files_verified": 378,
+  "exe_sha256": "05fc3a68292efbf0e7829463fc39c14a694127d3c13f6af827e3e47a1ff3f8f0",
+  "changed_payload_paths": [
+    "setup/setup_engine.py",
+    "ui/resources/app.asar",
+    "backend/ransomguard/ui_delivery.py",
+    "backend/ransomguard/cli.py",
+    "backend/ransomguard/resident.py",
+    "backend/ransomguard/response_rearm.py"
+  ],
+  "vm_fresh_install_reboot": "not_verified",
+  "vm_hotfix": "Actual screen and read-only DB agree: blocked=2 terminated=2 recovered=24; counters preserved; backend not restarted",
+  "tests": "backend 532, outcome metrics 5, TestLab 20; TypeScript and Vite build passed"
+}
