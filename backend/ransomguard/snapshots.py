@@ -273,7 +273,7 @@ class HourlySnapshotCoordinator:
                         raise ValueError
                 except (ValueError, TypeError, KeyError):
                     raise SnapshotStateError("Stored snapshot state is invalid; refusing creation") from None
-                if unresolved or now < attempted_at or (now < next_at and not getattr(self,'_manual_request_id',None)):
+                if unresolved or now < attempted_at or (now < next_at and not getattr(self,'_manual_request_id',None) and not getattr(self,'_initial_setup',False)):
                     reason = "unresolved_previous_attempt" if unresolved else "clock_moved_backwards" if now < attempted_at else "hourly_cooldown"
                     result = {"status": "skipped", "created": False, "attempted": False,
                               "reason": reason, "volume_id": volume, "volume_root": root,
@@ -313,6 +313,10 @@ class HourlySnapshotCoordinator:
         from .snapshot_retention import policy_path, policy_required, managed_creation
         with snapshot_guard():
             self._manual_request_id=request_id if trigger=='manual' else None
+            # An explicit scope application needs a baseline made AFTER the user's
+            # files exist. Only the scheduling cooldown is bypassed, never an
+            # unresolved creation, retention protections, or a backwards clock.
+            self._initial_setup = trigger == 'initial_setup'
             root = normalize_volume_root(volume_root)
             volume = _volume_id(self._resolve(root))
             if trigger=='manual':

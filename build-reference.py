@@ -4,12 +4,12 @@ import argparse,hashlib,json,shutil,subprocess,sys,zipfile,uuid
 B=Path(__file__).resolve().parent;ROOT=B.parents[1];P=B/'payload'
 parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--signed-drivers',type=Path);group.add_argument('--test-pc',action='store_true');parser.add_argument('--output',type=Path);parser.add_argument('--ui-asar',type=Path);args=parser.parse_args()
 channel='internal-preview' if args.signed_drivers else 'internal-test' if args.test_pc else 'isolated-lab'
-version='0.6.0-preview.16'
+version='0.6.0-preview.18'
 P=B/('staging-'+version+'-'+uuid.uuid4().hex[:8])
 def digest(path):
     with Path(path).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
 def copytree(src,dst):
-    shutil.copytree(src,dst,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','.venv','*.egg-info','.git','dist','build'))
+    shutil.copytree(src,dst,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','.venv','*.egg-info','.git','dist','build','*.status.json'))
 P.mkdir(exist_ok=True)
 baseline=ROOT/'work/prototype-installer-20261118/payload'
 for name in ('python','ui','firewall','bridge'):copytree(baseline/name,P/name)

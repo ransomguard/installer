@@ -127,9 +127,15 @@ def _refresh(runtime, *, create_snapshot=False, initial=False):
             db.execute('CREATE TABLE IF NOT EXISTS snapshot_retention_required(singleton INTEGER PRIMARY KEY CHECK(singleton=1),required INTEGER NOT NULL)')
             db.execute('INSERT OR REPLACE INTO snapshot_retention_required VALUES(1,1)');db.commit()
         try:
+            selected_snapshot_id = None
             if create_snapshot:
                 status['creation']=coordinator.run(volume,trigger='initial_setup' if initial else 'hourly_schedule')
-            catalog=create_manifest(volume_root=volume,protected_root=folder,
+                creation = status['creation']
+                if creation.get('created'):
+                    selected_snapshot_id = creation['snapshot']['snapshot_id']
+                elif initial:
+                    raise ValueError('New scope snapshot was not created: '+str(creation.get('reason','unknown')))
+            catalog=create_manifest(volume_root=volume,protected_root=folder,snapshot_id=selected_snapshot_id,
                 max_files=settings['max_files'],max_file_bytes=settings['max_file_bytes'],
                 max_total_bytes=settings['max_total_bytes'],max_seconds=60)
             catalog.update(operator_review_required=False,automatic_activation=True,

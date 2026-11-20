@@ -1,0 +1,34 @@
+import io,json,threading,unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+from ransomguard import console_stream as c
+
+class ConsoleStreamTests(unittest.TestCase):
+    def test_kernel_event_emits_without_legacy_console_and_omits_command_line(self):
+        event=SimpleNamespace(sequence=7,filetime=11,pid=42,kind='file_write',fields={'path':'one.txt','command_line':'SECRET'})
+        with patch.object(c,'emit') as emit:c.kernel_event('runtime',event)
+        runtime,channel,line=emit.call_args.args
+        self.assertEqual((runtime,channel),('runtime','kernel'))
+        self.assertEqual(json.loads(line)['sequence'],7)
+        self.assertNotIn('SECRET',line)
+
+    def test_idle_producer_does_not_block_another_connection(self):
+        release=threading.Event();entered=threading.Event();out=io.BytesIO();lock=threading.Lock()
+        class Connection:
+            def __init__(self,idle=False):self.idle=idle;self.done=False
+            def __enter__(self):return self
+            def __exit__(self,*a):pass
+            def recv_bytes(self,limit):
+                if self.idle:entered.set();release.wait(3);raise EOFError
+                if self.done:raise EOFError
+                self.done=True;return b'{"kind":"restore_verified"}\n'
+        idle=threading.Thread(target=c.copy_connection,args=(Connection(True),out,lock))
+        idle.start()
+        try:
+            self.assertTrue(entered.wait(1))
+            other=threading.Thread(target=c.copy_connection,args=(Connection(),out,lock));other.start();other.join(1)
+            self.assertFalse(other.is_alive())
+            self.assertIn(b'restore_verified',out.getvalue())
+        finally:release.set();idle.join(2)
+
+if __name__=='__main__':unittest.main()

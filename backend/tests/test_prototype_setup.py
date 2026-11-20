@@ -59,7 +59,7 @@ class PrototypeSetupTests(unittest.TestCase):
             self.assertEqual(config['snapshot_budget_gib'],8)
             self.assertFalse((runtime/'protected-manifest.json').exists())
 
-    def test_setup_baseline_uses_same_durable_hourly_gate(self):
+    def test_explicit_setup_refreshes_baseline_but_schedule_keeps_cooldown(self):
         at=datetime.now(timezone.utc);volume='\\\\?\\Volume{11111111-1111-1111-1111-111111111111}\\'
         s=Snapshot('{22222222-2222-2222-2222-222222222222}',volume,at,r'\\?\GLOBALROOT\Device\HarddiskVolumeShadowCopy1')
         with tempfile.TemporaryDirectory() as t:
@@ -67,8 +67,8 @@ class PrototypeSetupTests(unittest.TestCase):
             def create(*a,**k):calls.append(1);return s
             c=HourlySnapshotCoordinator(Path(t)/'state.db',volume_resolver=lambda x:volume,create_fn=create,clock=lambda:at)
             self.assertTrue(c.run(trigger='initial_setup')['created'])
-            self.assertFalse(c.run(trigger='initial_setup')['attempted'])
-            self.assertFalse(c.run()['attempted']);self.assertEqual(len(calls),1)
+            self.assertTrue(c.run(trigger='initial_setup')['created'])
+            self.assertFalse(c.run()['attempted']);self.assertEqual(len(calls),2)
             with self.assertRaises(ValueError):c.run(trigger='incident')
 
     def test_background_checkpoint_preserves_rows_and_defers_when_reader_busy(self):

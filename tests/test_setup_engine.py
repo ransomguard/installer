@@ -4,6 +4,17 @@ from pathlib import Path
 P=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('installer',P/'src/setup_engine.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class InstallerTests(unittest.TestCase):
+    def test_background_tasks_use_windowless_python(self):
+        with tempfile.TemporaryDirectory() as t:
+            base=Path(t);python=base/'python.exe';windowless=base/'pythonw.exe'
+            windowless.write_bytes(b'fixture')
+            with patch.object(m,'ps') as ps,patch('ransomguard.snapshot_settings.interval_minutes',return_value=60),patch('ransomguard.snapshots.default_state_db',return_value=base/'snapshots.db'):
+                m.register_tasks(base,{'python':str(python)},base/'backup')
+                code,data=ps.call_args.args
+                self.assertEqual(data['python'],str(windowless))
+                self.assertIn('New-ScheduledTaskAction -Execute $i.python',code)
+                windowless.unlink()
+                with self.assertRaisesRegex(RuntimeError,'Background Python'):m.register_tasks(base,{'python':str(python)},base/'backup')
     def test_install_never_changes_network_even_with_legacy_isolation_request(self):
         from unittest.mock import Mock
         runner=Mock(side_effect=AssertionError('Installer must not invoke network commands'))

@@ -374,6 +374,9 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                     raw = None
                     continue
                 if live_console: live_console.offer(event)
+                elif args.ready_file:
+                    from .console_stream import kernel_event
+                    kernel_event(Path(args.ready_file).parent,event)
                 with (storage_batch.record(raw) if storage_batch else nullcontext()):
                     if pipeline: pipeline.observe(event, registry)
                     raw_events_read += 1
@@ -594,6 +597,8 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                                                "live_response_enabled": live_any,
                                                "durable_response_ledger_enabled": live_any,
                                                "live_response_results": response_results})
+            from .console_stream import close_outputs
+            close_outputs()
     return 0
 
 

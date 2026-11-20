@@ -2,7 +2,7 @@
 import argparse, ast, ctypes, hashlib, json, os, re, shutil, subprocess, sys, time, uuid
 from pathlib import Path
 
-VERSION='0.6.0-preview.16'
+VERSION='0.6.0-preview.18'
 APP=Path(os.environ.get('ProgramFiles',r'C:\Program Files'))/'RansomGuard'
 DATA=Path(os.environ.get('ProgramData',r'C:\ProgramData'))/'RansomGuard'
 TASKS=('RansomGuard-InteractiveStartup','RansomGuard-PassiveSupervisor','RansomGuard-HourlySnapshot','RansomGuard-SnapshotRetention')
@@ -80,7 +80,9 @@ def verify_payload(payload):
 def register_tasks(base, paths, backup):
     from ransomguard.snapshot_settings import interval_minutes
     from ransomguard.snapshots import default_state_db
-    data=dict(base=str(base),python=paths['python'],engine=str(APP/VERSION/'setup/setup_engine.py'),backup=str(backup),snapshot_minutes=interval_minutes(default_state_db()))
+    background_python=Path(paths['python']).with_name('pythonw.exe')
+    if not background_python.is_file():raise RuntimeError('Background Python runtime is missing')
+    data=dict(base=str(base),python=str(background_python),engine=str(APP/VERSION/'setup/setup_engine.py'),backup=str(backup),snapshot_minutes=interval_minutes(default_state_db()))
     ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
 $old=Get-ScheduledTask -TaskName 'RansomGuard-InteractiveStartup' -ErrorAction SilentlyContinue
 $sid=if($old){$old.Principal.UserId}else{[Security.Principal.WindowsIdentity]::GetCurrent().User.Value}
@@ -189,7 +191,7 @@ def install(payload, request):
         # Enable a session-bound drain in the old worker through its existing
         # hot-reload protocol. Resident intake and driver ABI stay unchanged.
         oldsource=Path(old['recovery_root'])/'ransomguard'
-        for name in ('cli.py','installer_drain.py'):
+        for name in ('console_stream.py','installer_drain.py','cli.py'):
             if (oldsource/name).exists():shutil.copy2(oldsource/name,backup/('old-'+name))
             shutil.copy2(installroot/'backend/ransomguard'/name,oldsource/name)
         from ransomguard.resident import request_reload
@@ -399,7 +401,7 @@ def main():
                                  'Watch-RansomGuard.py','Watch-RansomGuard.ps1','installation.json','live-response-profile.json','protection.json','protected-manifest.json'):
                         if (bak/name).is_file():shutil.copy2(bak/name,b/name)
                     oldsource=Path(receipt['old_paths']['recovery_root'])/'ransomguard'
-                    for name in ('cli.py','installer_drain.py'):
+                    for name in ('console_stream.py','installer_drain.py','cli.py'):
                         if (bak/('old-'+name)).is_file():shutil.copy2(bak/('old-'+name),oldsource/name)
                     try:
                         ps("$i=[Console]::In.ReadToEnd()|ConvertFrom-Json;Get-ChildItem -LiteralPath $i.backup -Filter 'RansomGuard-*.xml'|ForEach-Object{Register-ScheduledTask -TaskName $_.BaseName -Xml (Get-Content -LiteralPath $_.FullName -Raw) -Force|Out-Null}",{'backup':str(bak)})

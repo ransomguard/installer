@@ -8,6 +8,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 
 CHANNELS = ('kernel', 'decision', 'response')
 _workers = {}
@@ -29,6 +30,7 @@ class Sender:
         self.closed = threading.Event()
         self.connection = None
         self.omitted = 0
+        self.retry_at = 0.0
         self.thread = threading.Thread(target=self.run, daemon=True, name='raw-console-output')
         self.thread.start()
 
@@ -48,6 +50,8 @@ class Sender:
                 continue
             try:
                 if self.connection is None:
+                    if time.monotonic() < self.retry_at:
+                        continue
                     self.connection = self.connector(self.address, family='AF_PIPE')
                 if self.omitted:
                     self.connection.send_bytes(('CONSOLE_OUTPUT_OMITTED=' + str(self.omitted) + '\n').encode())
@@ -60,6 +64,7 @@ class Sender:
                     except OSError:
                         pass
                 self.connection = None
+                self.retry_at = time.monotonic() + .5
                 # No viewer: no historical replay and no effect on event collection.
 
     def close(self):
@@ -87,6 +92,26 @@ def close_outputs():
         _workers.clear()
     for worker in workers:
         worker.close()
+
+def kernel_event(runtime, event):
+    """The collector's decoded event; independent of the legacy attached console."""
+    item = {'source':'kernel_ioctl_live','sequence':event.sequence,'filetime':event.filetime,
+            'pid':event.pid,'event':event.kind}
+    for key in ('path','new_extension','image_path','matched_rule_id','operation_result'):
+        if key in event.fields:item[key]=event.fields[key]
+    emit(runtime, 'kernel', json.dumps(item,ensure_ascii=False)+'\n')
+
+def copy_connection(connection, output, output_lock):
+    # Separate clients include collector, response worker and snapshot helpers.
+    # One idle producer must not prevent another producer's output being read.
+    with connection:
+        try:
+            while True:
+                raw=connection.recv_bytes(1024*1024)
+                with output_lock:
+                    output.write(raw);output.flush()
+        except (EOFError,OSError):
+            pass
 
 def audit(runtime, kind, payload, event_id, incident_id, occurred_at, staged):
     import re
@@ -125,15 +150,18 @@ def view(runtime, channel):
     with Listener(address, family='AF_PIPE') as listener:
         status = Path(runtime) / ('raw-console-' + channel + '.json')
         status.write_text(json.dumps({'viewer_pid': os.getpid(), 'ready': True}), encoding='utf-8')
+        print('[Ransom0 console] '+channel+': waiting for NEW backend output; no historical replay.',flush=True)
+        output_lock=threading.Lock()
+        slots=threading.BoundedSemaphore(16)
+        def receive(connection):
+            try:copy_connection(connection,sys.stdout.buffer,output_lock)
+            finally:slots.release()
         while True:
-            with listener.accept() as connection:
-                try:
-                    while True:
-                        raw = connection.recv_bytes(1024*1024)
-                        sys.stdout.buffer.write(raw)
-                        sys.stdout.buffer.flush()
-                except (EOFError, OSError):
-                    pass
+            connection=listener.accept()
+            if not slots.acquire(blocking=False):
+                connection.close()
+                continue
+            threading.Thread(target=receive,args=(connection,),daemon=True).start()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

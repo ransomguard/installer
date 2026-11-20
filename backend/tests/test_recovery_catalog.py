@@ -38,6 +38,18 @@ class CatalogTests(unittest.TestCase):
         for limits in ({'max_files':39},{'max_total_bytes':3},{'max_file_bytes':1}):
             with self.subTest(limits=limits), self.assertRaises(RecoveryValidationError):self.catalog(**limits)
 
+    def test_single_file_baseline_is_sufficient_and_restorable(self):
+        # A general protection scope is not the TestLab's 12-document fixture.
+        folder=self.source/'single';folder.mkdir();(folder/'one.txt').write_bytes(b'hello')
+        value=catalog_snapshot(snapshot(),volume_root='C:\\',protected_root=r'C:\single',reference_at=INCIDENT,backend=self.backend)
+        self.assertEqual(len(value['manifest']),1)
+        self.assertEqual(value['manifest'][0]['expected_sha256'],hashlib.sha256(b'hello').hexdigest())
+        (self.dest/'single').mkdir();(self.dest/'single'/'one.txt').write_bytes(b'changed')
+        plan=build_plan(snapshot(),volume_root='C:\\',protected_root=r'C:\single',manifest=value['manifest'],incident_at=INCIDENT)
+        result=RecoveryEngine(backend=self.backend).execute(plan,allow_local_test=True,containment_confirmed=True)
+        self.assertEqual(result['files_verified'],1)
+        self.assertEqual((self.dest/'single'/'one.txt').read_bytes(),b'hello')
+
     def test_symlink_refused(self):
         target=self.base/'outside';target.write_bytes(b'outside')
         try:(self.source/'protected'/'link').symlink_to(target)

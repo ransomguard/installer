@@ -151,6 +151,23 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(result["status"], "skipped")
         self.assertEqual(len(self.creations), 1)
 
+    def test_scope_application_creates_new_baseline_within_schedule_interval(self):
+        coordinator=self.coordinator()
+        first=coordinator.run(trigger='initial_setup')
+        self.now+=timedelta(seconds=10)
+        second=coordinator.run(trigger='initial_setup')
+        self.assertTrue(second['created'])
+        self.assertNotEqual(first['snapshot']['snapshot_id'],second['snapshot']['snapshot_id'])
+        self.assertEqual(coordinator.run()['reason'],'hourly_cooldown')
+
+    def test_scope_application_never_bypasses_unknown_creation(self):
+        provider=Mock(side_effect=SnapshotOutcomeUnknown('creation_timeout'))
+        coordinator=self.coordinator(create_fn=provider)
+        coordinator.run()
+        self.now+=timedelta(seconds=10)
+        self.assertEqual(coordinator.run(trigger='initial_setup')['reason'],'unresolved_previous_attempt')
+        self.assertEqual(provider.call_count,1)
+
     def test_independent_volumes_have_independent_hourly_gates(self):
         coordinator = self.coordinator(volume_resolver=lambda root: VOLUME if root == "C:\\" else OTHER_VOLUME)
         self.assertEqual(coordinator.run("C:\\")["status"], "created")

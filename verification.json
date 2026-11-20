@@ -1,43 +1,41 @@
 {
-  "version": "0.6.0-preview.16",
-  "date": "2026-11-20",
-  "change": "Rule1001 Track A UI classification, rule explanation, actual response stages, test/operation/unknown evidence labels",
-  "tests": {
-    "ui": 42,
-    "installer": 18,
-    "track_a_allowlist": 14,
-    "ui_lint": "PASS",
-    "ui_build": "PASS"
+  "version": "0.6.0-preview.18",
+  "backend_tests_passed": 512,
+  "installer_tests_passed": 19,
+  "testlab_tests_passed": 7,
+  "vm_upgrade": "PASS",
+  "vm_fresh_install_this_version": "NOT_TESTED",
+  "vm_reboot_this_version": "NOT_TESTED",
+  "one_file_scope": {
+    "files": 1,
+    "bytes": 5,
+    "live_file_unchanged": true,
+    "actual_vss_bytes_match": true,
+    "restored_disposable_copy_hash_match": true,
+    "scope_ready": true
   },
-  "artifact": {
-    "version": "0.6.0-preview.16",
-    "installer_sha256": "79311224d07f16c7e99eaface4114332137fdd69a0b77a043cd1fdf7ee1ad039",
-    "ui_asar_sha256": "58f2b35afad834f864409ccad500a961da1ff46d5057ff049f804e91017d0f6d",
-    "manifest_files_verified": 375,
-    "payload_archive_integrity": "PASS",
-    "built_rule1001_label_present": true,
-    "built_files": [
-      "dist/assets/index-CCfq_zt8.js"
-    ]
-  },
-  "vm_prerequisite_gate": "PASS: clean baseline without test-signing was refused before driver installation",
-  "fresh_install": "DEFERRED by user: test-signing configuration change not authorized; installation refused at prerequisite check",
-  "reboot": "DEFERRED: post-installation reboot not performed",
-  "network_adapter_present": false,
+  "kernel_pipe_new_event_count": 5,
+  "response_concurrent_pipe": "PASS",
+  "response_test_is_transport_only": true,
+  "scheduled_product_tasks_use_pythonw": true,
+  "existing_network_and_account_settings_preserved": true,
+  "counters_reset": false,
+  "kernel_dropped_final": 0,
+  "kernel_flushed_final": 0,
   "limitations": [
-    "Real JEV full Track A/B termination and recovery not verified in this fresh VM",
-    "Rule1001 child creation prevention alone is not confirmed ransomware or parent termination/recovery",
-    "No Microsoft production signature / production altitude",
-    "Physical PC and third-party antivirus coexistence not verified",
-    "Preview15 workload and recovery results are historical, not new Preview16 runs"
+    "No real JEV termination/recovery end-to-end in this run",
+    "No physical PC or antivirus coexistence test",
+    "No claim of zero loss at every load",
+    "Preview17 candidate dependency failure was recovered; no candidate17 release published",
+    "Scope verification request timed out during VM suspension; completed state and actual VSS bytes were checked after resume"
   ],
-  "testsigning_changed": false,
-  "testlab_launcher_hotfix": {
-    "date": "2026-11-20",
-    "windows_powershell_5_1_all_menu_argument_test": "PASS",
-    "existing_tests": 6,
-    "total_tests": 7,
-    "vm_workload_retested": false,
-    "installer_unchanged": true
+  "idle_ui_records": {
+    "agent_running_30s": 289,
+    "agent_stopped_30s": 48,
+    "agent_running_per_second": 9.62,
+    "agent_stopped_per_second": 1.6,
+    "collector_running_after_agent_stop": true,
+    "automation_agent_stopped": true,
+    "note": "30-second samples, not a throughput benchmark"
   }
 }
