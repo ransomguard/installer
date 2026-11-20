@@ -1,4 +1,4 @@
-Ransom0 독립 시험 도구 사용법 — 통합 설치본 preview.15 기준
+﻿Ransom0 독립 시험 도구 사용법 — 통합 설치본 preview.19 기준 / 한글 메뉴
 
 Ransom0가 설치된 시험용 Windows VM에서 이 폴더를 풀고 Start-TestLab.cmd를 관리자 권한으로 실행합니다. 별도 Python 설치나 ChatGPT가 필요 없습니다. 실행할 항목을 선택하고 TEST를 입력합니다.
 

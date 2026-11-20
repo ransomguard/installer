@@ -1,3 +1,11 @@
+## 테스트 엔진 한글 메뉴 (2026-11-20)
+
+TestLab 1~11번 메뉴와 실행 안내를 한글화했습니다. **TestLab ZIP만 다시 받아 새 폴더에 풀면 됩니다. 통합 설치본 재설치는 필요 없습니다.**
+
+[번호별 시험 설명과 준비 순서](https://github.com/ransomguard/installer/blob/main/testlab/README.md)를 확인하세요. 6번 준비 → 설정에서 전용 폴더를 복구 범위로 적용 → 7·8·9번 순서입니다. 3번은 높은 부하로 유실이 발생할 수 있습니다.
+
+Windows PowerShell 메뉴 인수 전달을 포함한 로컬 검사 11개 통과. 이번 한글화에서 VM 부하·차단·복구 시험은 재실행하지 않았습니다. 원본 진단 JSON과 PASS/FAIL 등 결과 코드는 유지합니다.
+
 # Ransom0 Preview19 — 온라인 전수 점검 및 수정본
 
 - **설치:** [Ransom0-Install.zip](https://github.com/ransomguard/installer/releases/download/v0.6.0-preview.19/Ransom0-Install.zip) — 통합 EXE, 점검 도구, VM/호스트 시험 가이드.
