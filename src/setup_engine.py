@@ -2,7 +2,7 @@
 import argparse, ast, ctypes, hashlib, json, os, re, shutil, subprocess, sys, time, uuid
 from pathlib import Path
 
-VERSION='0.6.0-preview.22'
+VERSION='0.6.0-preview.23'
 APP=Path(os.environ.get('ProgramFiles',r'C:\Program Files'))/'RansomGuard'
 DATA=Path(os.environ.get('ProgramData',r'C:\ProgramData'))/'RansomGuard'
 TASKS=('RansomGuard-InteractiveStartup','RansomGuard-PassiveSupervisor','RansomGuard-HourlySnapshot','RansomGuard-SnapshotRetention')

@@ -1,0 +1,26 @@
+{
+  "version": "0.6.0-preview.23",
+  "embedded_files_verified": 379,
+  "exe_sha256": "081233d41936f55cbd5703b579855df8165ce8c3cb12a0858aff2caf75aaeae9",
+  "changed_payload_paths": [
+    "setup/setup_engine.py",
+    "backend/ransomguard/ui_bridge.py",
+    "backend/tests/test_ui_bridge.py",
+    "ui/resources/app.asar",
+    "backend/tests/test_recovery_notice.py"
+  ],
+  "ui_tests": 48,
+  "installer_tests": 20,
+  "ui_build": "PASS; same artifact verified in VM",
+  "vm_hotfix": "PASS: ambiguous and no-score review alerts acknowledged and read back from UI database",
+  "test_baseline_recovery": "PASS: 12 hashes match, remaining holds 0, no new trial started",
+  "program_exception": "PASS: unregistered, registered, removed; kernel block preserved",
+  "vm_fresh_install_reboot": "not_verified",
+  "known_issues": [
+    "JEV query or validation failure root cause unresolved",
+    "120000-operation burst loses events",
+    "PC specification matrix not tested",
+    "third-party antivirus compatibility not tested"
+  ],
+  "backend_tests": 538
+}

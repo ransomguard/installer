@@ -6,7 +6,7 @@ spec=importlib.util.spec_from_file_location('installer',P/'src/setup_engine.py')
 class InstallerTests(unittest.TestCase):
     def test_build_version_is_derived_from_engine(self):
         import ast
-        tree=ast.parse((P/('build.py' if (P/'build.py').exists() else 'build-reference.py')).read_text(encoding='utf-8-sig'))
+        tree=ast.parse((P/'build.py').read_text(encoding='utf-8-sig'))
         node=next(n for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='version' for t in n.targets))
         namespace={'ast':ast,'B':P}
         actual=eval(compile(ast.Expression(node.value),'<build-version>','eval'),namespace)
