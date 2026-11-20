@@ -43,7 +43,7 @@ def change(runtime,minutes):
     from .scope_settings import scope_lock
     from .protection_setup import save_json
     require_admin()
-    with scope_lock(runtime),snapshot_guard():
+    with scope_lock(runtime,timeout=60),snapshot_guard():
         p=schedule_path(default_state_db());old=p.read_bytes() if p.exists() else None
         # Anchor the next run to the last attempt rather than postponing it
         # another full interval every time the user saves Settings.

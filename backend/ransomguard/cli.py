@@ -286,6 +286,15 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
         from .live_pipeline import LivePipeline
         pipeline = (LivePipeline(outbox, reader, args, profile, threshold_policy, config, initial_status)
                     if async_live else None)
+        from .response_rearm import ResponseRearm
+        rearm=ResponseRearm(args.ready_file,pipeline,resident=shared_reader is not None)
+        def response_health(status):
+            if pipeline:
+                pending=reader.queue.qsize() if hasattr(reader,'queue') else 0
+                result=rearm.tick(status,pending)
+                health.metadata['response_collection_invalid']=pipeline.invalid.is_set()
+                health.metadata['response_rearm_error']=rearm.last_error
+                if result:outbox.append('response_rearm_requested',result)
         from .counter_history import CounterHistory
         from .driver_maintenance import DriverMaintenance
         ready_file = getattr(args, 'ready_file', None)
@@ -306,6 +315,11 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
         health = ObserverHealth(getattr(args, 'ready_file', None), args.db,
                                 metadata=getattr(args, '_resident_info', None), stop_check_interval=.1)
         health.metadata['intake_thread_priority'] = getattr(reader, 'intake_priority', 'unchanged')
+        # Publish effective worker settings after validation, including hot reloads.
+        # runtime.json describes launcher startup and can predate scope/key setup.
+        health.metadata['response_tracks'] = (['A'] if live_a else []) + (['B'] if args.live_track_b else [])
+        health.metadata['response_authorized'] = bool(live_any and args.authorize_live)
+        health.metadata['response_path_prefix'] = args.response_path_prefix if live_any else None
         health.publish(initial_status, intake=reader.diagnostics() if prefetch else None, force=True)
         print("Observation mode: kernel -> durable outbox / Track B candidates"
               + (" / local UI IPC" if publisher else "")
@@ -349,6 +363,7 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                     idle_status = reader.status()
                     cumulative_status = counters.observe(idle_status)
                     maintenance.tick(idle_status, idle=True)
+                    response_health(idle_status)
                     health.metadata['counter_totals'] = dict(counters.state.get('totals', {}))
                     health.metadata['pending_intake'] = reader.queue.qsize() if hasattr(reader, 'queue') else 0
                     health.publish(idle_status, intake=reader.diagnostics() if prefetch else None)
@@ -418,7 +433,8 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                                 "process_creation_denied": False,
                                 "malware_verdict_confirmed": False,
                             })
-                    a_candidate = track_a.ingest(event, registry) if track_a else None
+                    a_candidate = (track_a.ingest(event, registry) if track_a and
+                                   (not pipeline or event.filetime>=pipeline.started_filetime) else None)
                     if a_candidate and retention: retention.protect(a_candidate['pid'],a_candidate['create_time'],'track_a')
                     if a_candidate and pipeline:
                         pipeline.submit("A", a_candidate, pid=a_candidate["pid"],
@@ -541,6 +557,7 @@ def _observe(args: argparse.Namespace, *, shared_reader=None, reload_requested=N
                     new_status = reader.status()
                     cumulative_status = counters.observe(new_status)
                     maintenance.tick(new_status)
+                    response_health(new_status)
                     health.metadata['counter_totals'] = dict(counters.state.get('totals', {}))
                     health.metadata['pending_intake'] = reader.queue.qsize() if hasattr(reader, 'queue') else 0
                     health.publish(new_status, intake=reader.diagnostics() if prefetch else None)

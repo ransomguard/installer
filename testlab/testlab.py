@@ -37,7 +37,15 @@ def health(base):
     # Wait for real complete telemetry; never substitute zero counters.
     deadline = time.monotonic() + 60
     while True:
-        h = load(base / 'observer-ready.json')
+        try:
+            h = load(base / 'observer-ready.json')
+        except (PermissionError, FileNotFoundError, json.JSONDecodeError):
+            # The collector atomically replaces this file. A transient sharing
+            # violation is not evidence of lost events; retain the deadline.
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Collector statistics remained unreadable for 60 seconds; test refused')
+            time.sleep(.1)
+            continue
         complete = all(k in h for k in ('counter_totals', 'driver_status', 'pending_intake'))
         if complete and h.get('worker_state') == 'running' and time.time() - h.get('observed_at', 0) <= 15:
             return h
@@ -54,13 +62,17 @@ def delta(before, after):
     return result
 
 def settled(base, seconds=120):
+    not_before = time.time()
     deadline = time.monotonic() + seconds
     time.sleep(2)
     while True:
         h = health(base)
-        if h.get('pending_intake', 1) == 0 and h['driver_status'].get('queue_depth', 1) == 0:
+        fresh = h.get('observed_at', 0) >= not_before
+        if fresh and h.get('pending_intake', 1) == 0 and h['driver_status'].get('queue_depth', 1) == 0:
             return h
-        if time.monotonic() >= deadline: return h
+        if time.monotonic() >= deadline:
+            if not fresh:raise RuntimeError('No statistics newer than the measurement barrier; result is not verified')
+            return h
         time.sleep(1)
 
 def prepare():
@@ -171,14 +183,27 @@ def kernel_block(base, run):
             'process_creation_denied':denied,'matched_events':evidence,'probe_exit_code':exit_code,
             'real_vss_delete_executed':False,'parent_kill_tested':False,'recovery_tested':False,'jev_called_by_test_tool':False}
 
+def require_live_worker(base, track):
+    from ransomguard.live_profile import observer_options
+    options, _ = observer_options(base/'live-response-profile.json', state_db=base/'holds.sqlite3')
+    h = health(base)
+    if ('--live-track-'+track.lower() not in options or
+            h.get('response_authorized') is not True or track not in h.get('response_tracks', []) or
+            h.get('response_collection_invalid') is not False):
+        raise RuntimeError('Current collector has not confirmed authorized Track '+track+'; configure scope/key and update the collector')
+    expected = options[options.index('--response-path-prefix')+1]
+    if h.get('response_path_prefix') != expected:
+        raise RuntimeError('Current collector scope differs from the approved profile; response test refused')
+    return h
+
+
 def response(base, run, track, allow_jev):
     owned, cfg = require_scope(base)
     if track == 'B' and not allow_jev:
         raise RuntimeError('Track B may send test metrics to configured JEV; explicit --allow-jev required')
     installation = load(base/'installation.json')
     if installation.get('evidence_mode') != 'test': raise RuntimeError('Only test-labelled installations supported')
-    runtime = load(base/'runtime.json')
-    if runtime.get('mode') != 'scoped-live-track-a-b': raise RuntimeError('Automatic A/B response is not enabled; configure test folder and JEV first')
+    require_live_worker(base, track)
     from ransomguard.snapshot_management import manual
     from ransomguard.protection_setup import refresh
     snap = manual(base, str(uuid.uuid4()))
@@ -228,12 +253,13 @@ def response(base, run, track, allow_jev):
 def child(track, run):
     # Delayed stimulus lets the reader bind the real process generation.
     prepare(); time.sleep(3)
-    for n in NAMES:
+    # Corroborate A immediately rather than letting a long write loop trigger B first.
+    for n in (NAMES[:1] if track=='A' else NAMES):
         p=safe_tree(SCOPE/n)
         p.write_bytes(os.urandom(8192))
         if track=='B':
             q=safe_tree(p.with_suffix('.r0test')); p.rename(q); q.rename(p)
-        time.sleep(.05)
+        if track=='B':time.sleep(.05)
     if track=='A':
         probe=Path(run)/'vssadmin.exe'
         if digest(probe)!=digest(Path(os.environ['SystemRoot'])/'System32/where.exe'): raise RuntimeError('Not a WHERE copy')
@@ -260,7 +286,9 @@ def main():
     try:
         if a.profile=='prepare': report.update(status='PASS',prepared=prepare())
         else:
-            receipt,base=installed(); before=health(base); report['before']=before['counter_totals']
+            receipt,base=installed(); before=settled(base); report['before']=before['counter_totals']
+            if before.get('pending_intake')!=0 or before['driver_status'].get('queue_depth')!=0:
+                raise RuntimeError('Collector backlog has not drained; no new test workload started')
             if a.profile=='idle':
                 if not 5<=a.seconds<=300: raise ValueError('seconds must be 5..300')
                 time.sleep(a.seconds)

@@ -17,6 +17,7 @@ class DashboardPolicyTests(unittest.TestCase):
             daemon.active=False;daemon.allowlist=[]
             with FirewallHoldManager(path,profile,client=daemon) as owner:
                 self.assertTrue(owner.reconcile_owned_holds()['reasserted'])
+                self.assertEqual(daemon.allowlist, profile.allowlist + ['192.0.2.8:443'])
                 self.assertEqual(owner.status()['holds'][0]['state'],'review_required')
                 self.assertFalse(owner.reconcile_owned_holds()['reasserted'])
                 owner.operator_review_release('incident',operator_verified_safe=True)
@@ -50,7 +51,7 @@ class DashboardPolicyTests(unittest.TestCase):
                 owner.acquire('b', 'B')
                 owner.release('a')
                 self.assertTrue(daemon.active)
-                self.assertEqual(daemon.allowlist, profile.allowlist)
+                self.assertEqual(daemon.allowlist, profile.allowlist + saved)
             with FirewallHoldManager(path, profile, client=daemon) as owner:
                 owner.release('b')
                 self.assertFalse(daemon.active)

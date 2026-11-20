@@ -60,7 +60,10 @@ class InternalCollection:
    temp.write_text(encoded,encoding='utf8');temp.replace(target);self.last_ack=policy
  def matches(self,event):
   if any(f.matches(event) for f in self.state_filters):return True
-  return bool(self.ui_filter and self.owner and self.owner.alive() and event.filetime>=self.owner.created and self.ui_filter.matches(event))
+  # Reject unrelated PID/path before the Win32 handle wait. Calling alive()
+  # for every system write needlessly crosses the OS/GIL boundary at burst rate.
+  return bool(self.ui_filter and self.ui_filter.matches(event) and self.owner
+              and event.filetime>=self.owner.created and self.owner.alive())
  def exclude(self,event):
   matched=self.matches(event)
   if matched:self.observed+=1

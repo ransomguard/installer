@@ -4,6 +4,17 @@ from unittest.mock import patch
 from ransomguard import console_stream as c
 
 class ConsoleStreamTests(unittest.TestCase):
+    def test_event_fanout_resolves_runtime_only_once_for_all_channels(self):
+        c._runtime_digest.cache_clear()
+        from pathlib import Path
+        with patch.object(c.Path, 'resolve', return_value=Path('C:/runtime')) as resolve:
+            first=c.pipe_name('runtime','kernel')
+            for _ in range(100):
+                self.assertEqual(c.pipe_name('runtime','kernel'),first)
+                self.assertNotEqual(c.pipe_name('runtime','response'),first)
+            self.assertEqual(resolve.call_count,1)
+        c._runtime_digest.cache_clear()
+
     def test_kernel_event_emits_without_legacy_console_and_omits_command_line(self):
         event=SimpleNamespace(sequence=7,filetime=11,pid=42,kind='file_write',fields={'path':'one.txt','command_line':'SECRET'})
         with patch.object(c,'emit') as emit:c.kernel_event('runtime',event)

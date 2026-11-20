@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ransomguard-integration"
-version = "0.5.2"
+version = "0.5.4"
 description = "RansomGuard restore/JEV: VSS recovery, kernel/UI IPC, global firewall daemon IPC and opt-in Track A/B response"
 requires-python = ">=3.10"
 dependencies = []

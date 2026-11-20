@@ -115,6 +115,16 @@ class FirewallHoldManager:
             return None
         return json.loads(row[0]), row[1] == 1, row[2]
 
+    def _effective_allowlist(self) -> list[str]:
+        # The UI's explicitly registered exceptions remain exceptions during
+        # containment. Freeze them in the durable baseline before enabling WFP;
+        # the shared policy lock prevents edits while any incident holds it.
+        row = self.db.execute("SELECT allowlist_json FROM firewall_baseline WHERE singleton=1").fetchone()
+        baseline = json.loads(row[0]) if row is not None else []
+        if not isinstance(baseline, list) or not all(isinstance(value, str) for value in baseline):
+            raise FirewallHoldError("Invalid saved firewall exception baseline")
+        return list(dict.fromkeys([*self.profile.allowlist, *baseline]))
+
     def _response_matches(self, result: dict[str, Any]) -> bool:
         if result.get("active") is not True:
             return False
@@ -122,7 +132,8 @@ class FirewallHoldManager:
         if direction != {"out":"outbound", "in":"inbound", "both":"both"}[self.profile.direction]:
             return False
         values = [item.get("value") for item in result.get("whitelist", [])]
-        return len(values) == len(self.profile.allowlist) and set(values) == set(self.profile.allowlist)
+        expected = self._effective_allowlist()
+        return len(values) == len(expected) and set(values) == set(expected)
 
     def _apply_policy(self, action, values, direction, observed):
         if "direction" in observed:
@@ -152,7 +163,16 @@ class FirewallHoldManager:
                                 (json.dumps(self.profile.allowlist, separators=(",", ":")), self.profile.direction))
                 row = (self.profile.allowlist, False, self.profile.direction)
             if row[0] != self.profile.allowlist or row[2] != self.profile.direction:
-                raise FirewallHoldError("Different firewall profile already owns the global policy")
+                # A fully released policy must not permanently own future
+                # incidents. Never replace an active, held or uncertain owner.
+                held=self.db.execute('SELECT 1 FROM firewall_holds LIMIT 1').fetchone()
+                baseline=self.db.execute('SELECT 1 FROM firewall_baseline LIMIT 1').fetchone()
+                if (not row[0] or row[0][0]!=self.profile.allowlist[0] or row[1] or held or baseline
+                        or self.client.request('get').get('active') is not False):
+                    raise FirewallHoldError("Different firewall profile already owns the global policy")
+                self.db.execute('UPDATE firewall_owner SET allowlist_json=?,direction=? WHERE singleton=1',
+                    (json.dumps(self.profile.allowlist,separators=(',',':')),self.profile.direction))
+                row=(self.profile.allowlist,False,self.profile.direction)
             old = self.db.execute("SELECT track,state FROM firewall_holds WHERE incident_id=?", (incident_id,)).fetchone()
             if old is not None and old[0] != track:
                 raise FirewallHoldError("Incident hold cannot change tracks silently")
@@ -188,7 +208,7 @@ class FirewallHoldManager:
                     self._begin()
                 # First incident, or an acknowledged session lost by a daemon
                 # restart: reassert ON only when GET reports the policy inactive.
-                applied = self._apply_policy("on", self.profile.allowlist, self.profile.direction, current)
+                applied = self._apply_policy("on", self._effective_allowlist(), self.profile.direction, current)
                 observed = self.client.request("get")
                 if not self._response_matches(applied) or not self._response_matches(observed):
                     raise FirewallHoldError("Daemon did not confirm expected global policy/allowlist")
@@ -198,7 +218,7 @@ class FirewallHoldManager:
             self.db.commit()
             return {"incident_id": incident_id, "scope": "host_outbound", "active_reported": True,
                     "active_holds": count, "wfp_enforcement_verified": False,
-                    "allowlist_reported": self.profile.allowlist, "state": "policy_acknowledged"}
+                    "allowlist_reported": self._effective_allowlist(), "state": "policy_acknowledged"}
         except BaseException:
             self.db.rollback()
             # Crash/restart safety: persist a hold even if remote state is
@@ -350,7 +370,7 @@ class FirewallHoldManager:
                     if not self._response_matches(current):
                         raise FirewallHoldError("Active policy drifted; refusing startup overwrite")
                 else:
-                    applied = self._apply_policy("on", self.profile.allowlist, self.profile.direction, current)
+                    applied = self._apply_policy("on", self._effective_allowlist(), self.profile.direction, current)
                     observed = self.client.request("get")
                     if not self._response_matches(applied) or not self._response_matches(observed):
                         raise FirewallHoldError("Restart containment was not confirmed by daemon")

@@ -145,7 +145,12 @@ class WindowsDriverReader:
                 if getattr(self, 'native_read', None) is not None:
                     # One GIL release spans submission/wait/cancellation/cleanup.
                     # The status/control path remains independent and unchanged.
-                    buffer = C.create_string_buffer(EVENT_BATCH_BYTES)
+                    # The single intake thread owns this buffer. Reuse it rather
+                    # than allocating/zeroing the maximum packet on every read,
+                    # including empty polls. Only returned bytes are exposed.
+                    if getattr(self, '_native_batch_buffer', None) is None:
+                        self._native_batch_buffer = C.create_string_buffer(EVENT_BATCH_BYTES)
+                    buffer = self._native_batch_buffer
                     returned = DWORD(0)
                     elapsed = C.c_double(0)
                     error = self.native_read(self.handle, GET_EVENT_BATCH, buffer,

@@ -29,6 +29,7 @@ class LivePipeline:
         if any(type(x) is not int for x in self.baseline):
             raise ValueError('Verified driver loss counters are required')
         self.invalid = threading.Event()
+        self.started_filetime = int((time.time()+11644473600)*10_000_000)
         self.window = EvidenceWindow(args.response_path_prefix, seconds=config.get('evidence_window_seconds',2.0))
         # Keep the pre-live policy across in-process worker replacements.
         # Otherwise a second worker would mistake our own BLOCK mode for the
@@ -55,6 +56,9 @@ class LivePipeline:
         if payload['pid'] == os.getpid():
             self.defer([payload | {'deferred_reason':'collector_process_requires_review'}])
             return
+        if payload.get('source_filetime',0)<self.started_filetime:
+            self.defer([payload | {'deferred_reason':'evidence_predates_response_worker'}])
+            return
         outcome = self.window.begin(payload)
         if outcome == 'evidence_window_full':
             self.defer([payload | {'deferred_reason': outcome}])
@@ -62,6 +66,9 @@ class LivePipeline:
     def submit(self, track, payload, *, pid, generation, path, filetime):
         if pid == os.getpid():
             self.defer([payload | {'deferred_reason':'collector_process_requires_review'}])
+            return
+        if filetime<self.started_filetime:
+            self.defer([payload | {'deferred_reason':'evidence_predates_response_worker'}])
             return
         job = {'id': str(uuid.uuid5(uuid.NAMESPACE_OID, f'RansomGuard:Track{track}:{pid}:{generation}')),
                'track': track, 'pid': pid, 'generation': generation, 'path': path,

@@ -4,7 +4,7 @@ import argparse,hashlib,json,shutil,subprocess,sys,zipfile,uuid
 B=Path(__file__).resolve().parent;ROOT=B.parents[1];P=B/'payload'
 parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--signed-drivers',type=Path);group.add_argument('--test-pc',action='store_true');parser.add_argument('--output',type=Path);parser.add_argument('--ui-asar',type=Path);args=parser.parse_args()
 channel='internal-preview' if args.signed_drivers else 'internal-test' if args.test_pc else 'isolated-lab'
-version='0.6.0-preview.18'
+version='0.6.0-preview.19'
 P=B/('staging-'+version+'-'+uuid.uuid4().hex[:8])
 def digest(path):
     with Path(path).open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
@@ -18,6 +18,7 @@ if args.ui_asar:
     unpacked=Path(str(args.ui_asar)+'.unpacked')
     if not unpacked.is_dir():raise SystemExit('Matching app.asar.unpacked is required')
     target=P/'ui/resources/app.asar.unpacked'
+    assert target.resolve().is_relative_to(P.resolve()) and P.resolve().is_relative_to(B.resolve())
     if target.exists():shutil.rmtree(target)
     shutil.copytree(unpacked,target)
 from build_intake import build as build_intake

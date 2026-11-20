@@ -87,6 +87,24 @@ class FirewallIpcTests(unittest.TestCase):
 
 
 class FirewallManagerTests(unittest.TestCase):
+    def test_released_extra_exception_does_not_poison_next_incident(self):
+        extra=FirewallProfile('https://api.typesafe.ai',('https://1.1.1.1',))
+        with FirewallHoldManager(self.db,extra,client=self.fake) as owner:
+            owner.acquire('test','A');owner.release('test')
+        with FirewallHoldManager(self.db,self.profile,client=self.fake) as owner:
+            owner.acquire('real','B')
+            self.assertEqual(self.fake.allowlist,self.profile.allowlist)
+            owner.release('real')
+
+    def test_changed_extras_never_take_an_active_or_unresolved_owner(self):
+        extra=FirewallProfile('https://api.typesafe.ai',('https://1.1.1.1',))
+        with FirewallHoldManager(self.db,extra,client=self.fake) as owner:
+            owner.acquire('test','A')
+        before=list(self.fake.calls)
+        with FirewallHoldManager(self.db,self.profile,client=self.fake) as owner:
+            with self.assertRaises(FirewallHoldError):owner.acquire('real','B')
+        self.assertEqual(self.fake.calls,before)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Path(self.tmp.name) / "hold.sqlite3"

@@ -14,7 +14,7 @@ class ScopeBusy(RuntimeError):pass
 
 
 @contextmanager
-def scope_lock(runtime, *, dispatch=False):
+def scope_lock(runtime, *, dispatch=False, timeout=0):
     """Also held by response enqueue and scheduled scope maintenance."""
     import msvcrt
     path=Path(runtime)/('scope-dispatch.lock' if dispatch else 'scope-change.lock')
@@ -22,8 +22,15 @@ def scope_lock(runtime, *, dispatch=False):
         f.seek(0,2)
         if f.tell()==0:f.write(b'0');f.flush()
         f.seek(0)
-        try:msvcrt.locking(f.fileno(),msvcrt.LK_NBLCK,1)
-        except OSError:raise ScopeBusy('복구 범위를 적용 중이거나 다른 설정 작업이 실행 중입니다.')
+        deadline=time.monotonic()+max(0,min(timeout,60))
+        while True:
+            try:
+                msvcrt.locking(f.fileno(),msvcrt.LK_NBLCK,1)
+                break
+            except OSError:
+                if time.monotonic()>=deadline:
+                    raise ScopeBusy('복구 범위를 적용 중이거나 다른 설정 작업이 실행 중입니다.')
+                time.sleep(.05)
         try:yield
         finally:f.seek(0);msvcrt.locking(f.fileno(),msvcrt.LK_UNLCK,1)
 

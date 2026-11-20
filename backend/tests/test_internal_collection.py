@@ -4,6 +4,17 @@ from types import SimpleNamespace
 from ransomguard.internal_collection import InternalCollection
 from ransomguard.observer_filter import ObserverOutboxFilter
 class InternalTests(unittest.TestCase):
+ def test_unrelated_events_never_query_ui_process_handle(self):
+  from unittest.mock import Mock
+  with tempfile.TemporaryDirectory() as d:
+   gate=InternalCollection(d);gate.ui_filter=ObserverOutboxFilter(Path(d)/'db.sqlite',observer_pid=77)
+   alive=Mock(return_value=True);gate.owner=SimpleNamespace(alive=alive,created=100)
+   for pid,path in ((78,'db.sqlite'),(77,'protected.txt')):
+    for _ in range(100):
+     self.assertFalse(gate.exclude(SimpleNamespace(pid=pid,filetime=101,event_type=4,fields={'path':str(Path(d)/path)})))
+   alive.assert_not_called()
+   self.assertTrue(gate.exclude(SimpleNamespace(pid=77,filetime=101,event_type=4,fields={'path':str(Path(d)/'db.sqlite')})))
+   alive.assert_called_once()
  def test_scope_and_generation(self):
   with tempfile.TemporaryDirectory() as d:
    gate=InternalCollection(d);gate.collect=False

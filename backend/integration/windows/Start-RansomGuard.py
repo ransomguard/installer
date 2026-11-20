@@ -14,8 +14,16 @@ def inventory():
     command="Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.exe','ransom0-ui.exe','r0-fw-daemon.exe') } | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress"
     result=subprocess.run(['powershell.exe','-NoProfile','-Command',command],capture_output=True,timeout=20,creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode:raise RuntimeError('Process inventory failed')
-    value=json.loads(result.stdout.decode('utf-8-sig'))
-    return value if isinstance(value,list) else [value]
+    text=result.stdout.decode('utf-8-sig').strip()
+    # On a cold boot pythonw is deliberately not a collector candidate.
+    # PowerShell emits no JSON when none of the product processes exists yet.
+    if not text:return []
+    value=json.loads(text)
+    if value is None:return []
+    rows=value if isinstance(value,list) else [value]
+    if not all(isinstance(row,dict) for row in rows):
+        raise RuntimeError('Invalid process inventory response')
+    return rows
 
 def spawn(args,label,env):
     with (BASE/(label+'.stdout.log')).open('ab') as out,(BASE/(label+'.stderr.log')).open('ab') as err:

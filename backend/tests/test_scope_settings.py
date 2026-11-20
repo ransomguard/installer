@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import sqlite3
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -11,6 +13,18 @@ from ransomguard import scope_settings as s
 
 
 class ScopeTests(unittest.TestCase):
+    def test_bounded_settings_wait_acquires_after_short_background_operation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            held=threading.Event()
+            def background():
+                with s.scope_lock(tmp):
+                    held.set();time.sleep(.15)
+            worker=threading.Thread(target=background);worker.start()
+            try:
+                self.assertTrue(held.wait(1))
+                with s.scope_lock(tmp,timeout=1):pass
+            finally:worker.join(2)
+
     def test_hold_and_review_block_change(self):
         with tempfile.TemporaryDirectory() as tmp:
             b=Path(tmp)

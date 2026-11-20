@@ -1,5 +1,6 @@
 """Raw backend output transport. No database polling, network socket, or UI formatting."""
 import argparse
+from functools import lru_cache
 import hashlib
 import json
 import os
@@ -14,11 +15,17 @@ CHANNELS = ('kernel', 'decision', 'response')
 _workers = {}
 _lock = threading.Lock()
 
+@lru_cache(maxsize=32)
+def _runtime_digest(runtime):
+    # Runtime identity is fixed for this worker's lifetime. Resolving it for
+    # every kernel event adds filesystem calls to the intake hot path.
+    identity = str(Path(runtime).resolve()).replace('\\', '/').casefold()
+    return hashlib.sha256(identity.encode()).hexdigest()[:24]
+
 def pipe_name(runtime, channel):
     if channel not in CHANNELS:
         raise ValueError('Invalid output channel')
-    identity = str(Path(runtime).resolve()).replace('\\', '/').casefold()
-    digest = hashlib.sha256(identity.encode()).hexdigest()[:24]
+    digest = _runtime_digest(os.path.abspath(runtime))
     return r'\\.\pipe\RansomGuard-output-' + digest + '-' + channel
 
 class Sender:
