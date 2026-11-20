@@ -23,13 +23,15 @@ while ($true) {
     Write-Host '0. Exit'
     $choice=Read-Host 'Select'
     if ($choice -eq '0') { break }
-    $testArgs=switch ($choice) {
+    # Windows PowerShell unwraps one switch result to a scalar string.
+    # Keep a string array so native-command splatting preserves the whole profile.
+    [string[]]$testArgs=@(switch ($choice) {
         '1' { @('idle') }; '2' { @('burst','--count','12000') }
         '3' { @('burst','--count','120000') }; '4' { @('mixed') }
         '5' { @('process') }; '6' { @('prepare') }; '7' { @('recovery') }
         '8' { @('track-a') }; '9' { @('track-b','--allow-jev') }; '10' { @('suite') }; '11' { @('kernel-block') }
         default { @() }
-    }
+    })
     if (!$testArgs.Count) { continue }
     Write-Host 'Only use in an approved test VM. Counters and failure evidence are preserved.' -ForegroundColor Yellow
     if ($choice -in @('7','8','9')) {

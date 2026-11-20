@@ -1,0 +1,7 @@
+TestLab 실행기 수정 — 2026-11-20
+Windows PowerShell 5.1에서 인수가 하나인 메뉴의 프로필 문자열이 문자 단위로 전달되던 오류를 수정했습니다.
+예: 6번 prepare가 p, r, e, p, a, r, e로 전달되어 invalid choice: p 발생.
+1~11번 메뉴 인수를 실제 PowerShell 5.1에서 무해한 Python 인수 출력기로 검증했습니다. 기존 시험 6개도 통과했습니다.
+VM의 부하·차단·복구 시험을 새로 실행한 것은 아닙니다. 시험 코드 및 안전 제한, 설치 EXE는 변경하지 않았습니다.
+기존 실행 창을 0번으로 종료하고 새 ZIP 전체를 새 폴더에 풀어 Start-TestLab.cmd를 관리자 실행하세요.
+6번 → TEST 후 C:\ProgramData\Ransom0TestLab\Protected를 Ransom0 설정에서 복구 범위로 적용한 다음 7·8·9번을 진행하세요.

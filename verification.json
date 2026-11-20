@@ -31,5 +31,13 @@
     "Physical PC and third-party antivirus coexistence not verified",
     "Preview15 workload and recovery results are historical, not new Preview16 runs"
   ],
-  "testsigning_changed": false
+  "testsigning_changed": false,
+  "testlab_launcher_hotfix": {
+    "date": "2026-11-20",
+    "windows_powershell_5_1_all_menu_argument_test": "PASS",
+    "existing_tests": 6,
+    "total_tests": 7,
+    "vm_workload_retested": false,
+    "installer_unchanged": true
+  }
 }
