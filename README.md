@@ -1,5 +1,14 @@
 # Ransom0 통합 시험 설치본
 
+## 다운로드 선택
+
+- **설치:** Releases의 `Ransom0-Install.zip` — 통합 설치 EXE, 점검 도구, VM/호스트 시험 가이드 포함.
+- **시험:** Releases의 `Ransom0-TestLab.zip` — 시험 실행 도구, 사용법, 검증결과 포함.
+- ZIP을 먼저 풀고 실행하세요. Source code ZIP은 설치 파일이 아닙니다.
+- 복구 시험은 6번으로 문서 생성 → 설정에서 `C:\ProgramData\Ransom0TestLab\Protected`를 복구 범위로 적용 → 7·8·9번 실행 순서입니다.
+- Rule1001 후속 UI 수정은 https://github.com/ransomguard/ui/pull/4 에서 검토합니다. Preview15 설치 EXE에는 아직 포함되지 않습니다.
+
+
 [Preview 15 다운로드](https://github.com/ransomguard/installer/releases/tag/v0.6.0-preview.15)
 
 Ransom0 0.6.0-preview.15 — 내부 시험용 통합 설치본
