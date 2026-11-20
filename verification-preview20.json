@@ -1,0 +1,11 @@
+{
+  "version": "0.6.0-preview.20",
+  "embedded_files_verified": 378,
+  "backend_tests": 527,
+  "installer_tests": 20,
+  "ipc_tests": 4,
+  "vm_applied": false,
+  "historical_backfill": false,
+  "counter_reset": false,
+  "exe_sha256": "59c27f27f2e23d44a0d34be84e86cb202a4dca131c16b50b11022d4dcb3acd73"
+}
