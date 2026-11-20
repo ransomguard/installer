@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.6.0-preview.21",
+  "version": "0.6.0-preview.22",
   "channel": "internal-test",
   "assigned_altitude": false,
   "distribution": "non-public internal testing only",
@@ -41,7 +41,7 @@
     "backend/ransomguard/__init__.py": "4915395300178a711172dab99457b80c591abc816329c308fd82df18ec5b1584",
     "backend/ransomguard/__main__.py": "307299fda7b77d22c64cb51430ec75e5f59d78e9c948786afb3b2544fe45e4b7",
     "backend/ransomguard/buffered_reader.py": "f6b45f61a5fe24374a7677d6cd46f8e82ce6eebf66838fcb6b84be259eb089c1",
-    "backend/ransomguard/cli.py": "6e58ec2412cf5dd1e8857dbd3e6463a0c819d691a6292f01c1a88d947c75fd0f",
+    "backend/ransomguard/cli.py": "e97676eb2fb97ad9516b4b26ee19606664122be41d1f58f4c948cef4bd41e928",
     "backend/ransomguard/console_stream.py": "5590495517575b41760e5aca22ef5fe0fef2a24c68c4d339c403382eeec562bf",
     "backend/ransomguard/correlation_identity.py": "e343f6e654a8f13db8f9d466e195dbf4f36f4d68f52e99ceb076c4f0cf7f72f6",
     "backend/ransomguard/counter_history.py": "7e8e86b038720f194245b6a8cb842df0533ef956b2c40226d0dd0c3afa4abf2b",
@@ -58,7 +58,7 @@
     "backend/ransomguard/incidents.py": "16e2019d850a3fec7c367084dcb98c90ef8748291b7d56e61c90bc8d46da1be1",
     "backend/ransomguard/installer_drain.py": "922e273f67db3ee2e1391c39b6bd962f5178a8629b7e86cb93ae37f51189bf38",
     "backend/ransomguard/intake_scheduling.py": "fe63abaeea098236a6c5a954b4bf9bbef6f25a107cc60641e2e2ccbdefecf6d3",
-    "backend/ransomguard/internal_collection.py": "903b3b796624c9953b29f404dbc3e878e863b21006f09cd56188dcde2fcbe606",
+    "backend/ransomguard/internal_collection.py": "9252f6398f247c6c5480bc5cf148b84da24009746359ee3610a8737be8c69f28",
     "backend/ransomguard/jev.py": "6d1188109b79f4c69f1a7c17b9534c639a59ec942a47b502647916bfe54a7947",
     "backend/ransomguard/jev_bridge.py": "a7f36db217b141b1105514a8dff6b15454dbfa48f7a4718b168a666df3e2425f",
     "backend/ransomguard/live_console.py": "d1411fd7bd499a1e6a2826574b61142a07126dd1e86398f86d085c3b0723d2db",
@@ -225,7 +225,7 @@
     "setup/lifecycle.py": "6dbd2e145e6646e8a505fc5f27d7ae693b595fb7f8216cf3ce7cd1caafc23cea",
     "setup/readiness.py": "f432137fb65a553fdcd0506322e6d358c1a16297eb93c0d2d9e9f737711cc712",
     "setup/release_policy.py": "8d4aef51e6920c484acbabbb71bc832c5e65e9366264fd4a190a854ef04c2c9e",
-    "setup/setup_engine.py": "4a8e34c70cf5e26e01739c7d2397ce33333398ce5087d94ea9cb2d6568db8f5e",
+    "setup/setup_engine.py": "80c676895d03ac5338a5c93a475555290ad2a41304f4cb60790d183043da81be",
     "ui/chrome_100_percent.pak": "ab7c4b7b6cb8832a31d44b95ec50ce52294f49422a3bdde4e21968eca2930cbe",
     "ui/chrome_200_percent.pak": "30fa4a6e27c9ff2fb0f939f01158477e621a67d86e9ecb84cf11b3947db8eb9d",
     "ui/d3dcompiler_47.dll": "a05f99734f7c4822fefc12b367af21fd0976ed6608752fb1e1e80b6ece7ecbbb",
@@ -292,7 +292,7 @@
     "ui/locales/zh-TW.pak": "7cb5f76e54a548d4e52aa8cdf226a4339bdadc304897abca690f407e95e42f4d",
     "ui/ransom0-ui.exe": "d1137a670e7c1c89da6b6ec182218528a49fb3aa6a5f848097f027fbd2c22541",
     "ui/resources/app-update.yml": "15927164828c46d25595b32e42f047771bbbb038ee7d6c6e029b0b795fba05ea",
-    "ui/resources/app.asar": "166be6d0a6c028be5fa18b859e18b8d6820456744082e38c9cc7a240fe58a2ce",
+    "ui/resources/app.asar": "478c2a1b266874cf2e15eb61feb11fcaad91364b4bcb845c44f17c1bc51e0bc4",
     "ui/resources/app.asar.unpacked/node_modules/@tailwindcss/oxide-win32-x64-msvc/LICENSE": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
     "ui/resources/app.asar.unpacked/node_modules/@tailwindcss/oxide-win32-x64-msvc/package.json": "09657fdd8d8e83db093959eb5a8aec87cadb50bbb084cf403c490a8b94d557ed",
     "ui/resources/app.asar.unpacked/node_modules/@tailwindcss/oxide-win32-x64-msvc/tailwindcss-oxide.win32-x64-msvc.node": "abdc655d7f9f413e2da0c97c90852fa476bcac3f2659e9ad51901cf58cb7eac4",
@@ -386,6 +386,7 @@
     "ui/version": "16b920d4bf144f494b7e66fc70a82bfadb1f036710dacca982917044be1aa83e",
     "ui/vk_swiftshader.dll": "86fe47036fb92c3ad14ec5c97d0ff41ea457d0784f25dc0fc67f7ef17a2dd8bc",
     "ui/vk_swiftshader_icd.json": "32d83ff113fef532a9f97e0d2831f8656628ab1c99e9060f0332b1532839afd9",
-    "ui/vulkan-1.dll": "72d4b679e0e70f8f024063f745e408e21158bd73f51f779694b90ef59762fa94"
+    "ui/vulkan-1.dll": "72d4b679e0e70f8f024063f745e408e21158bd73f51f779694b90ef59762fa94",
+    "backend/ransomguard/delivery_pressure.py": "180ed000a6be5273e35b2d54628c0dcd5ba6e60137b423e23021d56518dbd116"
   }
 }

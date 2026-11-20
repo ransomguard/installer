@@ -1,0 +1,17 @@
+{
+  "version": "0.6.0-preview.22",
+  "embedded_files_verified": 379,
+  "exe_sha256": "d3bf4005572a6c328a09f117a66a8304a35c9a1c078ca9e70e0a0c8e653ba60d",
+  "changed_payload_paths": [
+    "setup/setup_engine.py",
+    "ui/resources/app.asar",
+    "backend/ransomguard/cli.py",
+    "backend/ransomguard/internal_collection.py",
+    "backend/ransomguard/delivery_pressure.py"
+  ],
+  "vm_fresh_install_reboot": "not_verified",
+  "vm_hotfix": "Existing VM hotfix: actual own-DB exclusion 320363; menu12 PASS; test drop delta 0. New installer fresh install/reboot not verified.",
+  "tests": "backend 537 passed; Windows process lifetime PASS; native Electron WAL/FULL and rollback PASS; other checks recorded separately",
+  "known_issue": "TestLab3 FAIL: delta drops 17798, pending 73017; unresolved",
+  "user_test_reports": "1,2,4(retry),5,7,8,9,11,12 PASS; 6,10 skipped"
+}

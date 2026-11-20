@@ -1,0 +1,31 @@
+{
+  "updated_date": "2026-11-21",
+  "items": [
+    {
+      "id": "testlab-03-burst-loss",
+      "title": "테스트 엔진 3번 대량 부하 시 이벤트 유실 및 처리 지연 개선",
+      "status": "deferred_by_user",
+      "source": "사용자가 제공한 VM 시험 결과",
+      "run_id": "e7685a2ecf1b408fb9ee446ecd9c7cf4",
+      "result": "FAIL",
+      "operations": 120000,
+      "workload_seconds": 0.905658300000141,
+      "events_generated_delta": 143869,
+      "events_delivered_delta": 126071,
+      "events_dropped_delta": 17798,
+      "events_flushed_delta": 0,
+      "kernel_queue_at_end": 0,
+      "pending_at_end": 73017,
+      "cumulative_drops_after": 3115135,
+      "diagnosis": "급격한 대량 부하에서 유실과 미처리 대기가 확인됨. 정확한 병목 단계는 미확정.",
+      "next_work": [
+        "커널 큐, 수집 버퍼, 분석 및 저장, UI 전달 단계별 처리량과 대기를 대조해 병목 확인",
+        "이벤트 샘플링이나 임의 누락 없이 처리 성능 개선",
+        "동일 120000회 시험에서 새 유실 0 및 처리 대기 해소 여부 재검증"
+      ],
+      "constraints": "변경 전 사용자에게 보고. 기존 기록과 카운터 보존. 이번에는 추가 수정이나 시험을 실행하지 않음.",
+      "next_user_action": "4번은 기존 대기 해소 후 재시험 PASS. 1·2·4·5·7·8·9·11·12번 통과, 6·10번 생략. 3번은 후속 개선 대상으로 유지.",
+      "additional_drops_before_first_test4": 54205
+    }
+  ]
+}
