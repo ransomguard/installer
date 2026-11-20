@@ -6,12 +6,13 @@
 - **시험:** Releases의 `Ransom0-TestLab.zip` — 시험 실행 도구, 사용법, 검증결과 포함.
 - ZIP을 먼저 풀고 실행하세요. Source code ZIP은 설치 파일이 아닙니다.
 - 복구 시험은 6번으로 문서 생성 → 설정에서 `C:\ProgramData\Ransom0TestLab\Protected`를 복구 범위로 적용 → 7·8·9번 실행 순서입니다.
-- Rule1001 후속 UI 수정은 https://github.com/ransomguard/ui/pull/4 에서 검토합니다. Preview15 설치 EXE에는 아직 포함되지 않습니다.
+- **Preview16 설치 ZIP에는 Rule #1001 Track A 표시 수정이 포함됩니다.** UI 소스 검토: https://github.com/ransomguard/ui/pull/4
+- **이번 Preview16의 VM 신규 설치·설치 후 재부팅 검증은 사용자 요청으로 보류했습니다.** 사전 검사에서 시험 서명 미설정을 감지해 설치를 거부했으며, 해당 보안 설정을 변경하지 않았습니다. 코드·빌드·배포 파일 검증만 통과했습니다.
 
 
-[Preview 15 다운로드](https://github.com/ransomguard/installer/releases/tag/v0.6.0-preview.15)
+[Preview 16 다운로드](https://github.com/ransomguard/installer/releases/tag/v0.6.0-preview.16)
 
-Ransom0 0.6.0-preview.15 — 내부 시험용 통합 설치본
+Ransom0 0.6.0-preview.16 — 내부 시험용 통합 설치본
 
 Ransom0-Setup.exe 하나에 Python·커널 드라이버·복구·UI·방화벽이 포함됩니다. 다른 저장소를 따로 설치하거나 파이프라인을 수동 연결할 필요가 없습니다.
 1. 해당 VM/호스트 시험 가이드의 사전 준비를 완료합니다. 시험 서명 드라이버이므로 일반 PC 기본 보안 환경의 정식 배포판은 아닙니다.
@@ -23,7 +24,7 @@ Ransom0-Setup.exe 하나에 Python·커널 드라이버·복구·UI·방화벽�
 기존 내부 서비스/설치 폴더 이름 RansomGuard는 업그레이드 호환성을 위해 유지합니다. 화면/설치기/바로가기 제품명은 Ransom0입니다.
 Secure Boot·시험 서명·Windows 암호·VM 어댑터 설정을 설치기가 자동 변경하지 않습니다.
 유실 기록은 유지합니다. 12만 회 시험 통과가 무제한 부하/모든 환경에서 유실 0을 보증하지 않습니다. 원본 intake 버퍼 상한은384MiB(최대131072건)이며 UI/DB/분석 메모리는 별도입니다.
-소스 ZIP은 실행 설치본이 아닙니다. Releases의 EXE를 받으세요.
+소스 ZIP은 실행 설치본이 아닙니다. Releases의 Ransom0-Install.zip을 풀고 포함된 EXE를 실행하세요.
 
 
 소스: `src/` 설치기, `backend/` 포함 복구 소스, `testlab/` 독립 시험 도구. `build-reference.py`는 기존 payload/드라이버 바이너리가 필요한 제작 환경의 레시피로, 저장소 하나만으로 재현되는 빌드라고 주장하지 않습니다. 실제 포함 파일은 `payload-manifest.json`으로 식별합니다.

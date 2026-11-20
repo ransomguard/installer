@@ -1,102 +1,35 @@
 {
-  "version": "0.6.0-preview.15",
+  "version": "0.6.0-preview.16",
   "date": "2026-11-20",
-  "environment": {
-    "os": "Windows 11 x64",
-    "vm_ram_gib": 4,
-    "vm_vcpu": 2,
-    "network_adapter_present": false
-  },
-  "fresh_install": "PASS",
-  "reboot": "PASS",
-  "network_profile_unchanged": true,
-  "windows_account_metadata_unchanged": true,
-  "ui_brand_icon": "Ransom0 title/sidebar/taskbar screenshot; desktop shortcut metadata checked separately",
-  "burst_120000": {
-    "status": "PASS",
-    "generated": 133020,
-    "delivered": 133020,
-    "dropped": 0,
-    "flushed": 0,
-    "write_seconds": 6.5902211,
-    "total_seconds": 92.6380088,
-    "pending_at_end": 0
-  },
-  "mixed_1000": {
-    "status": "PASS",
-    "generated": 5211,
-    "dropped": 0,
-    "flushed": 0
-  },
-  "process_50": {
-    "status": "PASS",
-    "generated": 2444,
-    "dropped": 0,
-    "flushed": 0
-  },
-  "kernel_child_block": {
-    "status": "PASS",
-    "rule": 1001,
-    "actual_creation_denied": true,
-    "actual_vss_delete_executed": false,
-    "parent_kill_tested": false
-  },
-  "vss_recovery": {
-    "status": "PASS",
-    "files_verified": 12,
-    "files_failed": 0,
-    "sha256_match": true,
-    "automatic_response_tested": false,
-    "additional_loss": 0
-  },
+  "change": "Rule1001 Track A UI classification, rule explanation, actual response stages, test/operation/unknown evidence labels",
   "tests": {
-    "backend": 507,
+    "ui": 42,
     "installer": 18,
-    "ui": 41,
-    "toolkit": 6,
+    "track_a_allowlist": 14,
     "ui_lint": "PASS",
-    "ui_build": "PASS",
-    "kernel_static": 4,
-    "portable_c_host_run": "NOT PASSED: host execution error; not counted among passing tests"
+    "ui_build": "PASS"
   },
-  "raw_intake_peak_bytes": 250823232,
-  "raw_intake_limit_bytes": 402653184,
-  "event_limit": 131072,
-  "failed_candidates_preserved": {
-    "preview13_dropped": 77799,
-    "preview14_64MiB_dropped": 78552,
-    "preview14_pilot_reboot_additional_dropped": 63
+  "artifact": {
+    "version": "0.6.0-preview.16",
+    "installer_sha256": "79311224d07f16c7e99eaface4114332137fdd69a0b77a043cd1fdf7ee1ad039",
+    "ui_asar_sha256": "58f2b35afad834f864409ccad500a961da1ff46d5057ff049f804e91017d0f6d",
+    "manifest_files_verified": 375,
+    "payload_archive_integrity": "PASS",
+    "built_rule1001_label_present": true,
+    "built_files": [
+      "dist/assets/index-CCfq_zt8.js"
+    ]
   },
+  "vm_prerequisite_gate": "PASS: clean baseline without test-signing was refused before driver installation",
+  "fresh_install": "DEFERRED by user: test-signing configuration change not authorized; installation refused at prerequisite check",
+  "reboot": "DEFERRED: post-installation reboot not performed",
+  "network_adapter_present": false,
   "limitations": [
-    "Short finite workloads only; no unlimited zero-loss guarantee",
-    "Full real JEV Track A/B kill+restore not tested in this offline fresh VM",
-    "Physical PC / coexistence with third-party antivirus / packet enforcement not tested",
-    "GUI installation button not clicked by automation: EXE hash/extraction and same install engine verified",
-    "Kernel Filter rename completion development build is not bundled",
-    "Fresh GUI green kernel status does not establish API/scope automatic-response readiness",
-    "No Microsoft production signature or assigned production altitude",
-    "A transient blank scheduled-task console was observed after reboot; cosmetic issue remains"
+    "Real JEV full Track A/B termination and recovery not verified in this fresh VM",
+    "Rule1001 child creation prevention alone is not confirmed ransomware or parent termination/recovery",
+    "No Microsoft production signature / production altitude",
+    "Physical PC and third-party antivirus coexistence not verified",
+    "Preview15 workload and recovery results are historical, not new Preview16 runs"
   ],
-  "idle_30s": {
-    "status": "PASS",
-    "generated": 1195,
-    "additional_loss": 0
-  },
-  "desktop_shortcut": {
-    "name": "Ransom0.lnk",
-    "embedded_icon_index": 0,
-    "target_exists": true
-  },
-  "reboot_details": {
-    "automatic_startup_task_result": 0,
-    "drivers_running": true,
-    "ui_reopened": true,
-    "scope_preserved": true,
-    "cumulative_generated": 237246,
-    "cumulative_delivered": 237246,
-    "cumulative_dropped": 0,
-    "cumulative_flushed": 0,
-    "post_reboot_idle_generated": 1670,
-    "post_reboot_idle_status": "PASS"
-  }
+  "testsigning_changed": false
 }
