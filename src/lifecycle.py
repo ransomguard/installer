@@ -132,7 +132,7 @@ foreach($path in $i.paths){
 }''',{'paths':[receipt['paths']['ui'],receipt['paths']['firewall']]})
     for service in reversed(receipt.get('created_services',[])):
         engine.stop_service(service)
-        q=subprocess.run(['sc.exe','delete',service],capture_output=True,timeout=20)
+        q=subprocess.run(['sc.exe','delete',service],capture_output=True,timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         if q.returncode not in (0,1060):raise RuntimeError('Driver removal failed: '+service)
     from release_policy import driver_store
     for inf in reversed(receipt.get('driver_store_packages',[])):
@@ -140,9 +140,9 @@ foreach($path in $i.paths){
         receipt['reboot_required']=receipt.get('reboot_required',False) or value['reboot_required']
     engine.ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
 foreach($name in $i.tasks){if(Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue){Unregister-ScheduledTask -TaskName $name -Confirm:$false}}
-foreach($label in @('Ransom0.lnk','RansomGuard.lnk')){
+foreach($label in @('Ransom0.lnk','Ransom0_install.lnk','RansomGuard.lnk')){
 $link=Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) $label
-if(Test-Path -LiteralPath $link){$w=New-Object -ComObject WScript.Shell;if($w.CreateShortcut($link).TargetPath -eq $i.exe){Remove-Item -LiteralPath $link}}
+if(Test-Path -LiteralPath $link){$w=New-Object -ComObject WScript.Shell;if($w.CreateShortcut($link).TargetPath -in @($i.exe,(Join-Path $i.root 'Ransom0.exe'))){Remove-Item -LiteralPath $link}}
 }
 $key='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\RansomGuard.Internal'
 if(Test-Path $key){if((Get-ItemProperty $key).InstallLocation -eq $i.root){Remove-Item -LiteralPath $key}}

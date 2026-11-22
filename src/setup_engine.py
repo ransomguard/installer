@@ -2,7 +2,7 @@
 import argparse, ast, ctypes, hashlib, json, os, re, shutil, subprocess, sys, time, uuid
 from pathlib import Path
 
-VERSION='0.6.0-preview.23'
+VERSION='0.6.0-preview.24'
 APP=Path(os.environ.get('ProgramFiles',r'C:\Program Files'))/'RansomGuard'
 DATA=Path(os.environ.get('ProgramData',r'C:\ProgramData'))/'RansomGuard'
 TASKS=('RansomGuard-InteractiveStartup','RansomGuard-PassiveSupervisor','RansomGuard-HourlySnapshot','RansomGuard-SnapshotRetention')
@@ -207,13 +207,13 @@ def install(payload, request):
         # Freeze file intake before a bounded cooperative collector stop.
         # Exact coverage gap and before/after counters are kept in the receipt.
         journal['before']=load(base/'observer-ready.json');journal['coverage_gap_started']=time.time()
-        p=subprocess.run(['sc.exe','stop','Anti_Ransom_FsFilter'],capture_output=True,timeout=30)
+        p=subprocess.run(['sc.exe','stop','Anti_Ransom_FsFilter'],capture_output=True,timeout=30,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         if p.returncode not in (0,1062):raise RuntimeError('Cannot pause filter for controlled installation')
         # sc stop can return STOP_PENDING. Confirm STOPPED before pausing
         # process callbacks, otherwise continuous writes could defeat draining.
         deadline=time.monotonic()+25
         while time.monotonic()<deadline:
-            q=subprocess.run(['sc.exe','query','Anti_Ransom_FsFilter'],capture_output=True,timeout=10)
+            q=subprocess.run(['sc.exe','query','Anti_Ransom_FsFilter'],capture_output=True,timeout=10,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             if b'STOPPED' in q.stdout:break
             time.sleep(.2)
         else:raise RuntimeError('File filter stop not confirmed')
@@ -254,7 +254,7 @@ foreach($p in $items){$p.Refresh();if(!$p.HasExited -and $p.Path -eq $i.path){$p
             binary=installroot/'drivers'/(name+'.sys')
             args=['sc.exe','create',name,'type=','filesys' if name.endswith('FsFilter') else 'kernel','start=','demand','binPath=',str(binary)]
             if name.endswith('FsFilter'):args+=['depend=','FltMgr','group=','FSFilter Activity Monitor']
-            p=subprocess.run(args,capture_output=True,timeout=20)
+            p=subprocess.run(args,capture_output=True,timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             if p.returncode:raise RuntimeError('Driver service registration failed: '+name)
             journal['created_services'].append(name);save(DATA/'installation-receipt.json',journal)
         import winreg
@@ -265,7 +265,7 @@ foreach($p in $items){$p.Refresh();if(!$p.HasExited -and $p.Path -eq $i.path){$p
                 winreg.SetValueEx(k,'Altitude',0,winreg.REG_SZ,'385090');winreg.SetValueEx(k,'Flags',0,winreg.REG_DWORD,0)
         # Validate Windows signature/load enforcement before modifying the
         # fresh VM's network policy. Never enable test signing automatically.
-        p=subprocess.run(['sc.exe','start','Anti_Ransom_Driver'],capture_output=True,timeout=20)
+        p=subprocess.run(['sc.exe','start','Anti_Ransom_Driver'],capture_output=True,timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         if p.returncode not in (0,1056):
             raise RuntimeError('Windows에서 시험 드라이버를 로드하지 못했습니다 (코드 '+str(p.returncode)+'). 일반 PC에는 Microsoft 서명 패키지가 필요합니다. 보안 설정을 자동 변경하지 않았습니다.')
     templates=installroot/'backend/integration/windows'
@@ -291,12 +291,12 @@ foreach($p in $items){$p.Refresh();if(!$p.HasExited -and $p.Path -eq $i.path){$p
     transport=ensure_jev_transport(base,installroot)
     if request.get('api_key'):
         bridge=Path(transport['bridge']) if transport else installroot/'bridge/RansomGuard.JevBridge.exe'
-        p=subprocess.run([str(bridge),'--import-key'],input=request['api_key'],text=True,capture_output=True,timeout=20)
+        p=subprocess.run([str(bridge),'--import-key'],input=request['api_key'],text=True,capture_output=True,timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         if p.returncode:raise RuntimeError('JEV key import failed; key was not logged')
         request['api_key']='';transport={'endpoint':'https://api.typesafe.ai','bridge':str(bridge)};save(base/'jev-transport.json',transport)
     key_ready=False
     if transport:
-        check=subprocess.run([transport['bridge'],'--check-key'],capture_output=True,timeout=20)
+        check=subprocess.run([transport['bridge'],'--check-key'],capture_output=True,timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         key_ready=check.returncode==0
         if not key_ready:trace('JEV 키를 이 Windows에서 읽을 수 없어 자동 대응을 활성화하지 않습니다.')
     journal['network_setup']=prepare_network(manifest['channel'],old,request,installroot/'bridge/RansomGuard.JevBridge.exe',backup,ps)
@@ -314,11 +314,12 @@ foreach($p in $items){$p.Refresh();if(!$p.HasExited -and $p.Path -eq $i.path){$p
         trace('복구 기준 또는 JEV 키가 준비되지 않아 관찰 모드로 설치됩니다.')
     journal['task_registration_started']=True;save(DATA/'installation-receipt.json',journal)
     register_tasks(base,paths,backup)
-    # Shortcut opens an elevated local manager, not an unprivileged detached UI.
+    # Dashboard uses the integrated elevated startup; management is a separate link.
     ps(r'''$i=[Console]::In.ReadToEnd()|ConvertFrom-Json
 $w=New-Object -ComObject WScript.Shell
 $desktop=[Environment]::GetFolderPath('CommonDesktopDirectory')
-$s=$w.CreateShortcut((Join-Path $desktop 'Ransom0.lnk'));$s.TargetPath=$i.exe;$s.Arguments='--manage';$s.WorkingDirectory=Split-Path $i.exe;$s.IconLocation=$i.exe+',0';$s.Save()
+$s=$w.CreateShortcut((Join-Path $desktop 'Ransom0.lnk'));$s.TargetPath=$i.dashboard;$s.Arguments='';$s.WorkingDirectory=Split-Path $i.dashboard;$s.IconLocation=$i.dashboard+',0';$s.Save()
+$s=$w.CreateShortcut((Join-Path $desktop 'Ransom0_install.lnk'));$s.TargetPath=$i.exe;$s.Arguments='--manage';$s.WorkingDirectory=Split-Path $i.exe;$s.IconLocation=$i.exe+',0';$s.Save()
 foreach($name in @('RansomGuard.lnk','랜섬제로.lnk')) {
  $old=Join-Path $desktop $name
  if(Test-Path -LiteralPath $old) {
@@ -326,7 +327,7 @@ foreach($name in @('RansomGuard.lnk','랜섬제로.lnk')) {
   if($link.TargetPath -like ((Join-Path $env:ProgramFiles 'RansomGuard')+'\*\RansomGuard.exe') -and $link.Arguments -eq '--manage') { Remove-Item -LiteralPath $old }
  }
 }
-''',{'exe':str(installroot/'RansomGuard.exe')})
+''',{'exe':str(installroot/'RansomGuard.exe'),'dashboard':str(installroot/'Ransom0.exe')})
     journal.update(state='installed',recovery=preparation,network_ready=network_ready);save(DATA/'installation-receipt.json',journal)
     from lifecycle import register
     register(sys.modules[__name__],journal)
@@ -344,12 +345,12 @@ foreach($name in @('RansomGuard.lnk','랜섬제로.lnk')) {
 
 def stop_service(name):
     if name not in ('Anti_Ransom_Driver','Anti_Ransom_FsFilter'):raise ValueError('Unexpected service')
-    p=subprocess.run(['sc.exe','stop',name],capture_output=True,timeout=20)
+    p=subprocess.run(['sc.exe','stop',name],capture_output=True,timeout=20,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     if p.returncode not in (0,1060,1062):raise RuntimeError('Could not stop '+name)
     if p.returncode==1060:return
     deadline=time.monotonic()+30
     while time.monotonic()<deadline:
-        p=subprocess.run(['sc.exe','query',name],capture_output=True,timeout=10)
+        p=subprocess.run(['sc.exe','query',name],capture_output=True,timeout=10,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         if p.returncode==1060 or b'STOPPED' in p.stdout:return
         time.sleep(.25)
     raise RuntimeError('Service stop not confirmed: '+name)
@@ -426,7 +427,7 @@ def main():
                     else:
                         for service in reversed(receipt.get('created_services',[])):
                             stop_service(service)
-                            subprocess.run(['sc.exe','delete',service],capture_output=True,timeout=20,check=True)
+                            subprocess.run(['sc.exe','delete',service],capture_output=True,timeout=20,check=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
                         from release_policy import driver_store
                         for inf in reversed(receipt.get('driver_store_packages',[])):
                             driver_store('uninstall',inf)

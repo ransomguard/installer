@@ -1,0 +1,175 @@
+{
+  "status": "COMPLETE_REVIEW_REQUIRED",
+  "elapsed_seconds": 3612.8,
+  "samples": 241,
+  "policy_unchanged": true,
+  "errors": [],
+  "deltas": {
+    "events_generated": 78483,
+    "events_delivered": 78483,
+    "events_dropped": 0,
+    "events_flushed": 0
+  },
+  "final_pending": 0,
+  "final_kernel_queue": 0,
+  "max_pending": 128,
+  "sample_errors": [],
+  "processes": [
+    {
+      "pid": 8904,
+      "generation": "2026-11-22T03:58:08.1456119Z",
+      "role": "collector",
+      "samples": 241,
+      "private_start_mib": 59.76,
+      "private_end_mib": 67.69,
+      "private_peak_mib": 71.36,
+      "private_growth_mib": 7.93,
+      "private_slope_mib_per_hour": -2.73,
+      "quarter_medians_mib": [
+        58.14,
+        60.61,
+        57.1,
+        52.15
+      ],
+      "handles_start": 686,
+      "handles_end": 686,
+      "handles_peak": 687,
+      "threads_start": 8,
+      "threads_end": 8,
+      "working_set_start_mib": 42.44,
+      "working_set_end_mib": 49.0
+    },
+    {
+      "pid": 8568,
+      "generation": "2026-11-22T03:58:07.9939548Z",
+      "role": "firewall",
+      "samples": 241,
+      "private_start_mib": 0.97,
+      "private_end_mib": 0.97,
+      "private_peak_mib": 0.97,
+      "private_growth_mib": 0.0,
+      "private_slope_mib_per_hour": 0.0,
+      "quarter_medians_mib": [
+        0.97,
+        0.97,
+        0.97,
+        0.97
+      ],
+      "handles_start": 92,
+      "handles_end": 92,
+      "handles_peak": 92,
+      "threads_start": 1,
+      "threads_end": 1,
+      "working_set_start_mib": 0.22,
+      "working_set_end_mib": 0.23
+    },
+    {
+      "pid": 868,
+      "generation": "2026-11-22T07:26:56.4495278Z",
+      "role": "ui",
+      "samples": 241,
+      "private_start_mib": 317.61,
+      "private_end_mib": 302.0,
+      "private_peak_mib": 380.03,
+      "private_growth_mib": -15.62,
+      "private_slope_mib_per_hour": 39.0,
+      "quarter_medians_mib": [
+        286.74,
+        306.71,
+        310.57,
+        305.45
+      ],
+      "handles_start": 331,
+      "handles_end": 328,
+      "handles_peak": 344,
+      "threads_start": 14,
+      "threads_end": 14,
+      "working_set_start_mib": 369.29,
+      "working_set_end_mib": 357.45
+    },
+    {
+      "pid": 5800,
+      "generation": "2026-11-22T07:26:55.0538500Z",
+      "role": "ui",
+      "samples": 241,
+      "private_start_mib": 170.39,
+      "private_end_mib": 174.05,
+      "private_peak_mib": 176.5,
+      "private_growth_mib": 3.66,
+      "private_slope_mib_per_hour": 0.78,
+      "quarter_medians_mib": [
+        172.9,
+        172.61,
+        171.77,
+        172.85
+      ],
+      "handles_start": 913,
+      "handles_end": 913,
+      "handles_peak": 913,
+      "threads_start": 42,
+      "threads_end": 42,
+      "working_set_start_mib": 205.31,
+      "working_set_end_mib": 208.13
+    },
+    {
+      "pid": 7700,
+      "generation": "2026-11-22T07:26:55.4031865Z",
+      "role": "ui",
+      "samples": 241,
+      "private_start_mib": 11.49,
+      "private_end_mib": 11.49,
+      "private_peak_mib": 11.55,
+      "private_growth_mib": 0.0,
+      "private_slope_mib_per_hour": 0.0,
+      "quarter_medians_mib": [
+        11.49,
+        11.49,
+        11.49,
+        11.49
+      ],
+      "handles_start": 311,
+      "handles_end": 311,
+      "handles_peak": 311,
+      "threads_start": 14,
+      "threads_end": 14,
+      "working_set_start_mib": 53.29,
+      "working_set_end_mib": 53.28
+    },
+    {
+      "pid": 8472,
+      "generation": "2026-11-22T07:26:55.4006060Z",
+      "role": "ui",
+      "samples": 241,
+      "private_start_mib": 19.22,
+      "private_end_mib": 19.89,
+      "private_peak_mib": 25.88,
+      "private_growth_mib": 0.66,
+      "private_slope_mib_per_hour": -2.67,
+      "quarter_medians_mib": [
+        23.32,
+        19.89,
+        19.9,
+        19.9
+      ],
+      "handles_start": 425,
+      "handles_end": 425,
+      "handles_peak": 427,
+      "threads_start": 14,
+      "threads_end": 14,
+      "working_set_start_mib": 77.0,
+      "working_set_end_mib": 72.74
+    }
+  ],
+  "review": {
+    "verdict": "PASS_WITHIN_OBSERVED_SCOPE",
+    "scope": "One hour passive process memory, handle and collection-health observation",
+    "process_identity_continuity": true,
+    "response_health_all_samples": true,
+    "reason": "Collector quarter medians do not increase; UI renderer median plateaus in the latter half; other processes remain bounded. Handles and thread counts return to baseline or below.",
+    "limits": [
+      "Not a proof of absence of all memory leaks",
+      "No added load, actual malware, or kernel pool allocation measurement",
+      "No protection changes, restarts, forced memory trimming, or new detection workload"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-22",
+  "backend_tests": 538,
+  "installer_tests": 20,
+  "ui_tests": 48,
+  "ui_lint": "PASS",
+  "launcher_compile": "PASS",
+  "vm_hotfix": {
+    "status": "PASS",
+    "collector_unchanged": true,
+    "policy_unchanged": true,
+    "additional_drops": 0
+  },
+  "full_preview24_install_verified": false,
+  "real_malware_tested": false,
+  "high_load_loss_fixed": false
+}

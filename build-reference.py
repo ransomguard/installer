@@ -38,6 +38,7 @@ compiler=r'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 compile_args=[compiler,'/win32icon:'+str(B/'assets/Ransom0.ico'),'/nologo','/target:winexe','/platform:x64','/win32manifest:'+str(B/'src/app.manifest'),
  '/r:System.Windows.Forms.dll','/r:System.Drawing.dll','/r:System.Web.Extensions.dll','/r:System.IO.Compression.dll']
 subprocess.run(compile_args+['/out:'+str(P/'RansomGuard.exe'),str(B/'src/Manager.cs')],check=True)
+subprocess.run(compile_args+['/out:'+str(P/'Ransom0.exe'),str(B/'src/Dashboard.cs')],check=True)
 subprocess.run([compiler,'/nologo','/target:exe','/platform:x64','/r:System.Windows.Forms.dll','/r:System.Web.Extensions.dll',
  '/out:'+str(P/'RansomGuard-Check.exe'),str(B/'src/Readiness.cs')],check=True)
 subprocess.run([compiler,'/nologo','/target:exe','/platform:x64','/r:System.Security.dll','/r:System.Web.Extensions.dll',
@@ -55,7 +56,7 @@ zip_path=B/('payload-'+version+'-'+channel+'.zip')
 with zipfile.ZipFile(zip_path,'w',zipfile.ZIP_DEFLATED,compresslevel=5) as z:
     for name in list(files)+['payload-manifest.json']:z.write(P/name,name)
 out=args.output or ROOT/'outputs/school-demo-20261118';out.mkdir(parents=True,exist_ok=True)
-exe=out/('Ransom0-Setup.exe' if args.test_pc else 'Ransom0-'+('Internal' if args.signed_drivers else 'Lab')+'-Setup.exe')
+exe=out/('Ransom0_install.exe' if args.test_pc else 'Ransom0_'+('Internal' if args.signed_drivers else 'Lab')+'_install.exe')
 subprocess.run(compile_args+['/resource:'+str(zip_path)+',payload.zip','/out:'+str(exe),str(B/'src/Manager.cs')],check=True)
 report={'file':str(exe),'bytes':exe.stat().st_size,'sha256':digest(exe),'version':version,'channel':channel,'payload_files':len(files),
  'payload':str(P),'zip':str(zip_path),'ui_asar_sha256':digest(P/'ui/resources/app.asar'),'baseline_ui_unchanged':digest(P/'ui/resources/app.asar')==digest(baseline/'ui/resources/app.asar')}

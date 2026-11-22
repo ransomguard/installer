@@ -3,7 +3,7 @@ import json, subprocess
 from pathlib import Path
 
 def collect(payload):
-    result=subprocess.run([str(Path(payload)/'RansomGuard-Check.exe'),'--json'],capture_output=True,timeout=30)
+    result=subprocess.run([str(Path(payload)/'RansomGuard-Check.exe'),'--json'],capture_output=True,timeout=30,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     if result.returncode:
         raise ValueError('설치 전 시스템 검사를 완료하지 못했습니다.')
     return json.loads(result.stdout.decode('utf-8-sig'))
