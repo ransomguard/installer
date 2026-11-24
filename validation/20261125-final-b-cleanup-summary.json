@@ -1,0 +1,25 @@
+{
+  "status": "MANUAL_CLEANUP_VERIFIED",
+  "incident_id": "54288337-c14a-5004-81d3-0f2c861ad4c4",
+  "files_verified": 12,
+  "remaining_holds": 0,
+  "firewall_off_reported": true,
+  "original_test_verdict": "INCONCLUSIVE",
+  "old_review_preserved": [
+    [
+      "REVIEW_REQUIRED",
+      "evidence_expired_or_collection_invalidated"
+    ]
+  ],
+  "delta": {
+    "events_generated": 39720,
+    "events_delivered": 39720,
+    "events_dropped": 0,
+    "events_flushed": 0
+  },
+  "policies_unchanged": true,
+  "collector_retained": true,
+  "queues_empty": true,
+  "automatic_B_recovery_pass": false,
+  "evidence": "final-b-cleanup-result.json"
+}

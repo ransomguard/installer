@@ -1,0 +1,58 @@
+{
+  "checks": {
+    "pass": true,
+    "policies_unchanged": true,
+    "reset_unchanged": true,
+    "owned_unchanged": true,
+    "collector_retained": true,
+    "no_drops": true,
+    "queues_empty": true,
+    "health": true
+  },
+  "status": "PASS",
+  "scope": "One 120000-write normal workload; no A/B or real malware; not a guarantee at arbitrary sustained load.",
+  "stage": {
+    "writes": 120000,
+    "delta": {
+      "events_generated": 696572,
+      "events_delivered": 696572,
+      "events_dropped": 0,
+      "events_flushed": 0
+    },
+    "total_seconds": 226.6841173171997,
+    "drain_seconds": 225.82278513908386,
+    "burst": {
+      "operations": 120000,
+      "started": 1795539775.3362663,
+      "finished": 1795539776.0999103
+    }
+  },
+  "resources": {
+    "idle_resources": {
+      "idle": {
+        "samples": 17,
+        "cpu_measurement_seconds": 32.3711768,
+        "cpu_mean_percent_of_vm": 5.16470256960198,
+        "cpu_peak_sampled_percent_of_vm": 9.110183179468882,
+        "private_mean_mib": 387.2444852941176,
+        "private_peak_mib": 396.3828125,
+        "working_set_mean_mib": 584.0615808823529,
+        "working_set_peak_mib": 592.9765625
+      }
+    },
+    "writes_120000_resources": {
+      "writes_120000": {
+        "samples": 115,
+        "cpu_measurement_seconds": 231.3450732,
+        "cpu_mean_percent_of_vm": 35.09536863134719,
+        "cpu_peak_sampled_percent_of_vm": 64.33167447997612,
+        "private_mean_mib": 488.2901154891304,
+        "private_peak_mib": 693.73046875,
+        "working_set_mean_mib": 683.790523097826,
+        "working_set_peak_mib": 883.3125
+      }
+    }
+  },
+  "displayed_loss_before": 721728,
+  "displayed_loss_after": 721728
+}
