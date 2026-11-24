@@ -1,0 +1,83 @@
+{
+  "status": "STOPPED_FOR_REVIEW",
+  "configuration_unchanged": true,
+  "cases": [
+    {
+      "name": "normal_same_bytes",
+      "verdict": "NO_OBSERVED_FALSE_POSITIVE",
+      "operations": 12000,
+      "counter_delta": {
+        "events_generated": 48006,
+        "events_delivered": 48006,
+        "events_dropped": 0,
+        "events_flushed": 0
+      },
+      "changed_file_count": 0,
+      "harness_terminated_child": true,
+      "jev_scores": []
+    },
+    {
+      "name": "normal_sqlite",
+      "verdict": "NO_OBSERVED_FALSE_POSITIVE",
+      "operations": 12000,
+      "counter_delta": {
+        "events_generated": 35005,
+        "events_delivered": 35005,
+        "events_dropped": 0,
+        "events_flushed": 0
+      },
+      "changed_file_count": 0,
+      "harness_terminated_child": true,
+      "jev_scores": []
+    },
+    {
+      "name": "partial_aes",
+      "verdict": "TERMINATED_AND_RESTORED",
+      "operations": 12,
+      "counter_delta": {
+        "events_generated": 3524,
+        "events_delivered": 3524,
+        "events_dropped": 0,
+        "events_flushed": 0
+      },
+      "changed_file_count": 0,
+      "harness_terminated_child": false,
+      "jev_scores": [
+        0.84
+      ]
+    },
+    {
+      "name": "same_name_aes",
+      "verdict": "TERMINATED_AND_RESTORED",
+      "operations": 12,
+      "counter_delta": {
+        "events_generated": 1319,
+        "events_delivered": 1319,
+        "events_dropped": 0,
+        "events_flushed": 0
+      },
+      "changed_file_count": 0,
+      "harness_terminated_child": false,
+      "jev_scores": [
+        0.83
+      ]
+    },
+    {
+      "name": "slow_partial_aes",
+      "verdict": "REVIEW_NOT_CONTAINMENT_PASS",
+      "operations": 12,
+      "counter_delta": {
+        "events_generated": 3071,
+        "events_delivered": 3071,
+        "events_dropped": 0,
+        "events_flushed": 0
+      },
+      "changed_file_count": 12,
+      "harness_terminated_child": true,
+      "jev_scores": [
+        0.68
+      ]
+    }
+  ],
+  "source_report_sha256": "262d5c65588d5a5681109a76079df020b132fab9864e3901df2e0454474fdac7"
+}
