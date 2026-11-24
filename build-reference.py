@@ -2,7 +2,7 @@
 from pathlib import Path
 import argparse,ast,hashlib,json,shutil,subprocess,sys,zipfile,uuid
 B=Path(__file__).resolve().parent;ROOT=B.parents[1];P=B/'payload'
-parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--signed-drivers',type=Path);group.add_argument('--test-pc',action='store_true');parser.add_argument('--output',type=Path);parser.add_argument('--ui-asar',type=Path);args=parser.parse_args()
+parser=argparse.ArgumentParser();group=parser.add_mutually_exclusive_group();group.add_argument('--signed-drivers',type=Path);group.add_argument('--test-pc',action='store_true');parser.add_argument('--output',type=Path);ui_group=parser.add_mutually_exclusive_group();ui_group.add_argument('--ui-asar',type=Path);ui_group.add_argument('--ui-dir',type=Path);args=parser.parse_args()
 channel='internal-preview' if args.signed_drivers else 'internal-test' if args.test_pc else 'isolated-lab'
 # Use the install engine as the single release version source.
 version=next(ast.literal_eval(n.value) for n in ast.parse((B/'src/setup_engine.py').read_text(encoding='utf-8-sig')).body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='VERSION' for t in n.targets))
@@ -13,7 +13,12 @@ def copytree(src,dst):
     shutil.copytree(src,dst,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','.venv','*.egg-info','.git','dist','build','*.status.json'))
 P.mkdir(exist_ok=True)
 baseline=ROOT/'work/prototype-installer-20261118/payload'
-for name in ('python','ui','firewall','bridge'):copytree(baseline/name,P/name)
+for name in ('python','ui','firewall','bridge'):
+    source=args.ui_dir if name=='ui' and args.ui_dir else baseline/name
+    if name=='ui' and args.ui_dir:
+        for required in ('ransom0-ui.exe','resources/app.asar','resources/app.asar.unpacked'):
+            if not (source/required).exists():raise SystemExit('Incomplete matched UI package: '+required)
+    copytree(source,P/name)
 if args.ui_asar:
     shutil.copy2(args.ui_asar,P/'ui/resources/app.asar')
     unpacked=Path(str(args.ui_asar)+'.unpacked')

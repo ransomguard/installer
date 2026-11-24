@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "version": "0.6.0-preview.25",
+  "embedded_files_verified": 382,
+  "embedded_zip_matches_build": true,
+  "packaged_first_party_sources_match": true,
+  "driver_sha256": {
+    "Anti_Ransom_Driver": "5814a95a19b08735960d8f51e1d39de112895cc8706eda57e5172e3898b4efd0",
+    "Anti_Ransom_FsFilter": "088f92660dfa263b94654cb8f46ab39a523678ceb46a1822354ce84a4d0ae38b"
+  },
+  "thresholds": {
+    "mode": "live_opt_in_or_simulation",
+    "thresholds_are_demo_only": true,
+    "benign_threshold": 0.2,
+    "malicious_threshold": 0.8
+  },
+  "bundled_runtime_smoke": "bundled runtime imports and native export OK",
+  "native_sqlite_smoke": "native SQLite ABI OK",
+  "backend_tests": 646,
+  "installer_tests": 20,
+  "ui_tests": 53,
+  "ui_assertions": 341,
+  "ui_lint": "PASS",
+  "ui_typescript_vite_build": "PASS",
+  "ui_package": "PASS; local Electron 44.4.3 distribution, no signing/resource customization",
+  "actual_vm_installation": "NOT_YET_VERIFIED",
+  "drivers_loaded_on_host": false,
+  "real_malware_executed": false,
+  "exe_sha256": "a11779dd276e67920eacf48ea19fa0b1b8df07437466d6af4b06d26c7a02f2ef",
+  "bytes": 215106560
+}
