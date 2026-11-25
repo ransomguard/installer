@@ -379,6 +379,17 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('command',choices=('inspect','install','uninstall','plan-uninstall','status','start','watch','snapshot','retention'));p.add_argument('--payload');p.add_argument('--runtime');a=p.parse_args()
     payload=Path(a.payload) if a.payload else Path(__file__).resolve().parents[1]
     base=Path(a.runtime) if a.runtime else discover()[0]
+    service_state = Path(__file__).resolve().parents[1] / 'service-state'
+    if ((service_state / 'incoming/service-owner.json').is_file() or (service_state / 'private/stores/import.json').is_file()):
+        if a.command in ('snapshot','retention'):
+            from ransomguard.service_operations import submit
+            operation = 'snapshot.scheduled' if a.command == 'snapshot' else 'snapshot.retention'
+            print(json.dumps(submit(service_state, operation, {}), ensure_ascii=False, default=str))
+            return
+        if a.command == 'status':
+            base = service_state / 'private/stores'
+        if a.command in ('install','uninstall'):
+            raise RuntimeError('Storage service registered. Preserve its current stores and use an offline service upgrade.')
     if a.command=='inspect':result=inspect(payload)
     elif a.command=='plan-uninstall':
         from lifecycle import plan
